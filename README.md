@@ -1,4 +1,4 @@
-# 🌐 BroadbandX - AI-Powered Real-Time Subscription Management System
+# 🌐 BroadbandX - An AI-Ready Dynamic Broadband Subscription Management Platform
 
 ![BroadbandX](https://img.shields.io/badge/BroadbandX-v2.1-blue.svg)
 ![MERN](https://img.shields.io/badge/MERN-Stack-green.svg)
@@ -722,7 +722,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ## 🔗 **Important Links**
 
-- **GitHub Repository**: [https://github.com/CodingManiac11/BroadbandX](https://github.com/CodingManiac11/BroadbandX)
+- **GitHub Repository**: [https://github.com/CodingManiac11/BroadbandX_CP](https://github.com/CodingManiac11/BroadbandX_CP)
 - **Current Version**: v2.1 with Real-Time Communication
 - **Live Demo**: (Coming Soon - Phase 1 completion at 92%)
 - **API Documentation**: (Coming Soon - Swagger integration)
