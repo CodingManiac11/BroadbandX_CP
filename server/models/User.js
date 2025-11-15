@@ -95,8 +95,7 @@ userSchema.virtual('isLocked').get(function() {
   return !!(this.lockUntil && this.lockUntil > Date.now());
 });
 
-// Indexes for performance
-userSchema.index({ email: 1 });
+// Indexes for performance (email index auto-created by unique: true)
 userSchema.index({ role: 1 });
 userSchema.index({ status: 1 });
 userSchema.index({ customerSince: 1 });

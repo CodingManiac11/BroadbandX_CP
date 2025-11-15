@@ -96,17 +96,23 @@ if (process.env.NODE_ENV === 'development') {
 // MongoDB connection with improved error handling and retry logic
 const connectDB = async () => {
   try {
+    // Check if MONGODB_URI exists
+    if (!process.env.MONGODB_URI) {
+      console.error('❌ MONGODB_URI not found in environment variables');
+      process.exit(1);
+    }
+
+    console.log('🔄 Connecting to MongoDB...');
+    
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       // Connection pool settings
       maxPoolSize: 10,
-      minPoolSize: 5,
+      minPoolSize: 2,
       maxIdleTimeMS: 30000,
-      // Timeout settings
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-      connectTimeoutMS: 10000,
+      // Increased timeout settings for better reliability
+      serverSelectionTimeoutMS: 30000, // Increased from 5000
+      socketTimeoutMS: 60000,          // Increased from 45000
+      connectTimeoutMS: 30000,         // Increased from 10000
       // Retry settings
       retryWrites: true,
       retryReads: true,
@@ -128,11 +134,26 @@ const connectDB = async () => {
     mongoose.connection.on('reconnected', () => {
       console.log('✅ MongoDB reconnected');
     });
-
+    
+    return conn;
+    
   } catch (error) {
-    console.error('❌ MongoDB initial connection error:', error);
-    // Don't exit the process, let the app continue with potential fallback
-    console.log('⚠️  Server starting without database connection');
+    console.error('❌ MongoDB Atlas connection failed:', error.message);
+    
+    // Fallback to local MongoDB for development
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        console.log('🔄 Attempting fallback to local MongoDB...');
+        const localConn = await mongoose.connect('mongodb://localhost:27017/broadband-subscription-db');
+        console.log('✅ Connected to local MongoDB for development');
+        return localConn;
+      } catch (localError) {
+        console.error('❌ Local MongoDB connection also failed:', localError.message);
+      }
+    }
+    
+    console.error('❌ All database connections failed. Server will continue without database.');
+    // Don't exit, let server run for demo purposes
   }
 };
 

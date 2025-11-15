@@ -1,4 +1,4 @@
-# 🌐 BroadbandX (FlexiSub) - AI-Powered Real-Time Subscription Management System
+# 🌐 BroadbandX - AI-Powered Real-Time Subscription Management System
 
 ![BroadbandX](https://img.shields.io/badge/BroadbandX-v2.1-blue.svg)
 ![MERN](https://img.shields.io/badge/MERN-Stack-green.svg)

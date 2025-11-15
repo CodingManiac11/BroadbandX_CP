@@ -1,8 +1,10 @@
 const User = require('../models/User');
 const { generateToken, generateRefreshToken, verifyRefreshToken } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { dbOperation } = require('../middleware/dbHealthCheck');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -71,73 +73,93 @@ const login = asyncHandler(async (req, res) => {
     });
   }
 
-  // Get user with password
-  const user = await User.findByEmail(email).select('+password');
-
-  if (!user) {
-    return res.status(401).json({
+  // Check database connection
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({
       status: 'error',
-      message: 'Invalid credentials'
+      message: 'Database temporarily unavailable. Please try again later.'
     });
   }
 
-  // Check if account is locked
-  if (user.isLocked) {
-    return res.status(423).json({
-      status: 'error',
-      message: 'Account temporarily locked due to too many failed login attempts'
-    });
-  }
+  try {
+    // Get user with password using timeout wrapper
+    const user = await dbOperation(
+      () => User.findByEmail(email).select('+password'),
+      null
+    );
 
-  // Check role if specified (for separate login portals)
-  if (role && user.role !== role) {
-    await user.incLoginAttempts();
-    return res.status(401).json({
-      status: 'error',
-      message: `Invalid credentials for ${role} portal`
-    });
-  }
-
-  // Check password
-  const isPasswordValid = await user.comparePassword(password);
-
-  if (!isPasswordValid) {
-    await user.incLoginAttempts();
-    return res.status(401).json({
-      status: 'error',
-      message: 'Invalid credentials'
-    });
-  }
-
-  // Check if user is active
-  if (user.status !== 'active') {
-    return res.status(401).json({
-      status: 'error',
-      message: 'Account is not active. Please contact support.'
-    });
-  }
-
-  // Reset login attempts and update last login
-  await user.resetLoginAttempts();
-  user.lastLogin = new Date();
-  await user.save();
-
-  // Generate tokens
-  const token = generateToken(user);
-  const refreshToken = generateRefreshToken(user);
-
-  // Remove password from response
-  user.password = undefined;
-
-  res.status(200).json({
-    status: 'success',
-    message: 'Login successful',
-    data: {
-      user,
-      token,
-      refreshToken
+    if (!user) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Invalid credentials'
+      });
     }
-  });
+
+    // Check if account is locked
+    if (user.isLocked) {
+      return res.status(423).json({
+        status: 'error',
+        message: 'Account temporarily locked due to too many failed login attempts'
+      });
+    }
+
+    // Check role if specified (for separate login portals)
+    if (role && user.role !== role) {
+      await user.incLoginAttempts();
+      return res.status(401).json({
+        status: 'error',
+        message: `Invalid credentials for ${role} portal`
+      });
+    }
+
+    // Check password
+    const isPasswordValid = await user.comparePassword(password);
+
+    if (!isPasswordValid) {
+      await user.incLoginAttempts();
+      return res.status(401).json({
+        status: 'error',
+        message: 'Invalid credentials'
+      });
+    }
+
+    // Check if user is active
+    if (user.status !== 'active') {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Account is not active. Please contact support.'
+      });
+    }
+
+    // Reset login attempts and update last login
+    await user.resetLoginAttempts();
+    user.lastLogin = new Date();
+    await user.save();
+
+    // Generate tokens
+    const token = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    // Remove password from response
+    user.password = undefined;
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Login successful',
+      data: {
+        user,
+        token,
+        refreshToken
+      }
+    });
+
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Login failed due to server error'
+    });
+  }
 });
 
 // @desc    Refresh access token
