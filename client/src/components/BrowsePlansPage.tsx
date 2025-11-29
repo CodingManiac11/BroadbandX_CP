@@ -12,38 +12,47 @@ import {
   Divider
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { Speed, Wifi, Router, CheckCircle } from '@mui/icons-material';
+import { Speed, Wifi, Router, CheckCircle, Block } from '@mui/icons-material';
 import { apiClient, handleApiResponse, handleApiError } from '../services/api';
+import { customerService } from '../services/customerService';
 
 const BrowsePlansPage: React.FC = () => {
   const navigate = useNavigate();
   const [plans, setPlans] = useState<any[]>([]);
+  const [userSubscriptions, setUserSubscriptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchPlans();
+    fetchPlansAndSubscriptions();
   }, []);
 
-  const fetchPlans = async () => {
+  const fetchPlansAndSubscriptions = async () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('🔍 Fetching plans from database...');
+      console.log('🔍 Fetching plans and user subscriptions...');
       
-      // Fetch all plans from the database
-      const response = await apiClient.get('/plans');
-      const result = handleApiResponse(response);
+      // Fetch plans and user subscriptions in parallel
+      const [plansResponse, subscriptionsResponse] = await Promise.all([
+        apiClient.get('/plans'),
+        customerService.getCustomerSubscriptions()
+      ]);
       
-      console.log('📋 Plans fetched:', result);
+      const plansResult = handleApiResponse(plansResponse);
+      console.log('📋 Plans fetched:', plansResult);
       
       // Filter only active plans
-      const activePlans = (result as any[]).filter((plan: any) => plan.isActive);
+      const activePlans = (plansResult as any[]).filter((plan: any) => plan.isActive);
       setPlans(activePlans);
       
+      // Set user subscriptions
+      setUserSubscriptions(subscriptionsResponse.subscriptions || []);
+      
       console.log(`✅ ${activePlans.length} active plans loaded`);
+      console.log(`👤 ${subscriptionsResponse.subscriptions?.length || 0} user subscriptions found`);
     } catch (err: any) {
-      console.error('❌ Error fetching plans:', err);
+      console.error('❌ Error fetching data:', err);
       const errorMessage = handleApiError(err);
       setError(errorMessage || 'Failed to load plans');
     } finally {
@@ -53,14 +62,30 @@ const BrowsePlansPage: React.FC = () => {
 
   const handleSelectPlan = (plan: any) => {
     console.log('📦 Plan selected:', plan);
+    
+    // Check if user already has this plan
+    if (isPlanAlreadyTaken(plan._id)) {
+      alert('You already have an active subscription to this plan.');
+      return;
+    }
+    
     // Navigate to subscription page or open payment modal
-    // For now, let's pass the plan data via navigation state
     navigate('/dashboard', { 
       state: { 
         selectedPlan: plan,
         action: 'subscribe'
       } 
     });
+  };
+
+  const isPlanAlreadyTaken = (planId: string): boolean => {
+    return userSubscriptions.some(subscription => 
+      subscription.plan?._id === planId && subscription.status === 'active'
+    );
+  };
+
+  const hasAnyActiveSubscription = (): boolean => {
+    return userSubscriptions.some(subscription => subscription.status === 'active');
   };
 
   const formatPrice = (price: number) => {
@@ -91,7 +116,7 @@ const BrowsePlansPage: React.FC = () => {
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
         </Alert>
-        <Button variant="contained" onClick={fetchPlans}>
+        <Button variant="contained" onClick={fetchPlansAndSubscriptions}>
           Retry
         </Button>
       </Box>
@@ -248,23 +273,56 @@ const BrowsePlansPage: React.FC = () => {
 
                 {/* Action Button */}
                 <Box sx={{ p: 2, pt: 0 }}>
-                  <Button
-                    variant="contained"
-                    fullWidth
-                    size="large"
-                    onClick={() => handleSelectPlan(plan)}
-                    sx={{
-                      bgcolor: getCategoryColor(plan.category),
-                      '&:hover': {
+                  {isPlanAlreadyTaken(plan._id) ? (
+                    <Button
+                      variant="outlined"
+                      fullWidth
+                      size="large"
+                      disabled
+                      startIcon={<Block />}
+                      sx={{
+                        borderColor: '#f44336',
+                        color: '#f44336',
+                        fontWeight: 'bold',
+                        py: 1.5
+                      }}
+                    >
+                      Already Taken
+                    </Button>
+                  ) : hasAnyActiveSubscription() ? (
+                    <Button
+                      variant="outlined"
+                      fullWidth
+                      size="large"
+                      disabled
+                      sx={{
+                        borderColor: '#ff9800',
+                        color: '#ff9800',
+                        fontWeight: 'bold',
+                        py: 1.5
+                      }}
+                    >
+                      Active Subscription Exists
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="contained"
+                      fullWidth
+                      size="large"
+                      onClick={() => handleSelectPlan(plan)}
+                      sx={{
                         bgcolor: getCategoryColor(plan.category),
-                        opacity: 0.9
-                      },
-                      fontWeight: 'bold',
-                      py: 1.5
-                    }}
-                  >
-                    Select This Plan
-                  </Button>
+                        '&:hover': {
+                          bgcolor: getCategoryColor(plan.category),
+                          opacity: 0.9
+                        },
+                        fontWeight: 'bold',
+                        py: 1.5
+                      }}
+                    >
+                      Select This Plan
+                    </Button>
+                  )}
                 </Box>
               </Card>
             </Box>

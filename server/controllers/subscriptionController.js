@@ -59,11 +59,11 @@ const createSubscription = asyncHandler(async (req, res) => {
   const taxAmount = finalPrice * 0.08;
   const totalAmount = finalPrice + taxAmount;
 
-  // Create subscription
+  // Create subscription directly
   const subscription = await Subscription.create({
     user: req.user._id,
     plan: planId,
-    status: 'pending',
+    status: 'active',
     startDate: subscriptionStartDate,
     endDate,
     billingCycle,
@@ -80,24 +80,27 @@ const createSubscription = asyncHandler(async (req, res) => {
     }
   });
 
-  // Add service history
   await subscription.addServiceHistory(
-    'created',
-    'Subscription created and pending activation',
+    'activated',
+    'Subscription activated',
     req.user._id,
     { planName: plan.name, billingCycle }
   );
 
-  await subscription.populate('plan user');
+  subscription.paymentHistory.push({
+    date: new Date(),
+    amount: totalAmount,
+    paymentMethod: 'direct',
+    status: 'completed',
+    transactionId: `sub-${Date.now()}`
+  });
+  await subscription.save();
 
-  // Emit real-time event for subscription creation
-  if (global.realTimeEvents) {
-    global.realTimeEvents.subscriptionCreated(req.user._id.toString(), subscription);
-  }
+  await subscription.populate('plan user');
 
   res.status(201).json({
     status: 'success',
-    message: 'Subscription created successfully',
+    message: 'Subscription activated successfully',
     data: {
       subscription
     }
@@ -108,10 +111,13 @@ const createSubscription = asyncHandler(async (req, res) => {
 // @route   GET /api/subscriptions/my-subscriptions
 // @access  Private
 const getUserSubscriptions = asyncHandler(async (req, res) => {
-  const { status, page = 1, limit = 10 } = req.query;
+  const { status = 'active', page = 1, limit = 10 } = req.query;
 
-  const filter = { user: req.user._id };
-  if (status) filter.status = status;
+  // Default filter to only show active subscriptions
+  const filter = { user: req.user._id, status: 'active' };
+  if (status && status !== 'active') {
+    filter.status = status; // Allow other statuses if explicitly requested
+  }
 
   const subscriptions = await Subscription.find(filter)
     .populate('plan')
@@ -743,6 +749,211 @@ const getPaymentHistory = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Activate pending subscription (Admin only)
+// @route   PUT /api/admin/subscriptions/:id/activate
+// @access  Private/Admin
+const activateSubscription = asyncHandler(async (req, res) => {
+  const subscription = await Subscription.findById(req.params.id).populate('plan user');
+
+  if (!subscription) {
+    return res.status(404).json({
+      status: 'error',
+      message: 'Subscription not found'
+    });
+  }
+
+  if (subscription.status !== 'pending') {
+    return res.status(400).json({
+      status: 'error',
+      message: `Cannot activate subscription with status: ${subscription.status}. Only pending subscriptions can be activated.`
+    });
+  }
+
+  // Activate the subscription
+  subscription.status = 'active';
+  subscription.startDate = new Date();
+
+  // Add payment record to indicate manual activation
+  subscription.paymentHistory.push({
+    date: new Date(),
+    amount: subscription.pricing.totalAmount,
+    paymentMethod: 'manual-activation',
+    status: 'completed',
+    transactionId: `manual-${Date.now()}`
+  });
+
+  await subscription.save();
+
+  // Add service history
+  await subscription.addServiceHistory(
+    'activated',
+    'Subscription manually activated by admin',
+    req.user._id
+  );
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Subscription activated successfully',
+    data: {
+      subscription
+    }
+  });
+});
+
+// @desc    Get subscription plan history
+// @route   GET /api/subscriptions/plan-history
+// @access  Private
+const getPlanHistory = asyncHandler(async (req, res) => {
+  try {
+    // Get user's current and past subscriptions with service history
+    const subscriptions = await Subscription.find({ 
+      user: req.user._id 
+    })
+    .populate('plan', 'name pricing features')
+    .sort({ createdAt: 1 }); // Sort by creation date ascending
+
+    if (!subscriptions || subscriptions.length === 0) {
+      return res.status(200).json({
+        status: 'success',
+        message: 'No subscription history found',
+        data: { planHistory: [] }
+      });
+    }
+
+    let planHistory = [];
+
+    // Process each subscription's service history
+    for (const subscription of subscriptions) {
+      if (subscription.serviceHistory && subscription.serviceHistory.length > 0) {
+        // Filter service history for plan-related changes
+        const planChanges = subscription.serviceHistory.filter(history => 
+          ['activated', 'upgraded', 'downgraded', 'created'].includes(history.type)
+        );
+
+        for (const change of planChanges) {
+          let fromPlan = null;
+          let toPlan = {
+            _id: subscription.plan._id,
+            name: subscription.plan.name,
+            price: subscription.plan.pricing?.monthly ? Math.round(subscription.plan.pricing.monthly * 100) : 0,
+            billingCycle: subscription.billingCycle || 'monthly',
+            features: subscription.plan.features || [],
+            dataLimit: subscription.plan.features?.dataLimit?.amount || 0,
+            speedLimit: subscription.plan.features?.speed?.download || 0,
+            status: 'active'
+          };
+
+          // If it's an upgrade or downgrade, try to get the old plan info from metadata
+          if (['upgraded', 'downgraded'].includes(change.type) && change.metadata) {
+            if (change.metadata.oldPlan) {
+              // Try to find the old plan by name
+              const oldPlan = await Plan.findOne({ name: change.metadata.oldPlan });
+              if (oldPlan) {
+                fromPlan = {
+                  _id: oldPlan._id,
+                  name: oldPlan.name,
+                  price: oldPlan.pricing?.monthly ? Math.round(oldPlan.pricing.monthly * 100) : 0,
+                  billingCycle: subscription.billingCycle || 'monthly',
+                  features: oldPlan.features || [],
+                  dataLimit: oldPlan.features?.dataLimit?.amount || 0,
+                  speedLimit: oldPlan.features?.speed?.download || 0,
+                  status: 'inactive'
+                };
+              } else {
+                // Fallback: create a basic fromPlan object
+                fromPlan = {
+                  _id: 'unknown',
+                  name: change.metadata.oldPlan,
+                  price: 0,
+                  billingCycle: subscription.billingCycle || 'monthly',
+                  features: [],
+                  dataLimit: 0,
+                  speedLimit: 0,
+                  status: 'inactive'
+                };
+              }
+            }
+          }
+
+          // Add to plan history
+          planHistory.push({
+            _id: change._id || `${subscription._id}-${change.type}-${change.date}`,
+            subscriptionId: subscription._id,
+            fromPlan,
+            toPlan,
+            changeType: change.type,
+            effectiveDate: change.date,
+            createdAt: change.date,
+            proration: change.metadata?.additionalCost ? {
+              daysUsed: 0,
+              daysTotal: subscription.billingCycle === 'yearly' ? 365 : 30,
+              creditCents: 0,
+              chargeCents: Math.round((change.metadata.additionalCost || 0) * 100)
+            } : null
+          });
+        }
+      }
+    }
+
+    // If we don't have detailed history, create a basic one from subscription data
+    if (planHistory.length === 0 && subscriptions.length > 0) {
+      let previousPlan = null;
+      
+      for (const subscription of subscriptions) {
+        planHistory.push({
+          _id: `basic-${subscription._id}`,
+          subscriptionId: subscription._id,
+          fromPlan: previousPlan,
+          toPlan: {
+            _id: subscription.plan._id,
+            name: subscription.plan.name,
+            price: subscription.plan.pricing?.monthly ? Math.round(subscription.plan.pricing.monthly * 100) : 0,
+            billingCycle: subscription.billingCycle || 'monthly',
+            features: subscription.plan.features || [],
+            dataLimit: subscription.plan.features?.dataLimit?.amount || 0,
+            speedLimit: subscription.plan.features?.speed?.download || 0,
+            status: 'active'
+          },
+          changeType: previousPlan ? 'upgraded' : 'created',
+          effectiveDate: subscription.startDate || subscription.createdAt,
+          createdAt: subscription.createdAt
+        });
+
+        // Set this plan as previous for next iteration
+        previousPlan = {
+          _id: subscription.plan._id,
+          name: subscription.plan.name,
+          price: subscription.plan.pricing?.monthly ? Math.round(subscription.plan.pricing.monthly * 100) : 0,
+          billingCycle: subscription.billingCycle || 'monthly',
+          features: subscription.plan.features || [],
+          dataLimit: subscription.plan.features?.dataLimit?.amount || 0,
+          speedLimit: subscription.plan.features?.speed?.download || 0,
+          status: 'inactive'
+        };
+      }
+    }
+
+    // Sort by date (most recent first)
+    planHistory.sort((a, b) => new Date(b.effectiveDate) - new Date(a.effectiveDate));
+
+    console.log('📋 Generated comprehensive plan history:', planHistory.length, 'entries');
+
+    res.status(200).json({
+      status: 'success',
+      message: `Found ${planHistory.length} plan changes`,
+      data: { planHistory }
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching plan history:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch plan history',
+      error: error.message
+    });
+  }
+});
+
 module.exports = {
   createSubscription,
   getUserSubscriptions,
@@ -758,5 +969,7 @@ module.exports = {
   updateUsage,
   scheduleInstallation,
   addPayment,
-  getPaymentHistory
+  getPaymentHistory,
+  activateSubscription,
+  getPlanHistory
 };

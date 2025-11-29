@@ -28,6 +28,8 @@ import {
   Avatar,
   Stack,
   Badge,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -46,10 +48,14 @@ import {
   Payment,
   Support,
   Add,
-  Notifications as NotificationsIcon,
+  Notifications as NotificationsIcon
 } from '@mui/icons-material';
+import { BillingDashboard } from '../components/billing';
+import SupportCenter from '../components/SupportCenter';
+import AccountSettingsSimple from '../components/AccountSettingsSimple';
 import { useAuth } from '../contexts/AuthContext';
 import { useRealtime } from '../contexts/RealtimeContext';
+import webSocketService from '../services/webSocketService';
 import { customerService, CustomerStats, BillingHistory } from '../services/customerService';
 import { Plan, Subscription } from '../types/index';
 import UPIPaymentForm from '../components/UPIPaymentForm';
@@ -86,23 +92,81 @@ const CustomerDashboard: React.FC = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showUsageModal, setShowUsageModal] = useState(false);
   const [selectedSubscription, setSelectedSubscription] = useState<Subscription | null>(null);
+  
+  // Payment-related states
+  const [showPaymentConfirmModal, setShowPaymentConfirmModal] = useState(false);
+  const [selectedBill, setSelectedBill] = useState<any>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error' | 'warning' | 'info';
+  }>({
+    open: false,
+    message: '',
+    severity: 'info'
+  });
 
   useEffect(() => {
-    fetchCustomerStats();
-    // Also load subscriptions on initial load to ensure we have data for stats calculation
-    fetchSubscriptions();
+    // Fetch subscriptions first, then calculate stats
+    const initializeDashboard = async () => {
+      try {
+        console.log('Initializing dashboard...');
+        
+        // First fetch subscriptions
+        const fetchedSubscriptions = await fetchSubscriptions();
+        
+        // Then fetch/calculate stats using the fetched subscriptions
+        await fetchCustomerStats(fetchedSubscriptions);
+      } catch (error) {
+        console.error('Error initializing dashboard:', error);
+        setLoading(false);
+      }
+    };
+    
+    initializeDashboard();
   }, []);
+
+  // Debug user data and ensure WebSocket authentication
+  useEffect(() => {
+    console.log('🧑 User data received:', user);
+    console.log('📡 Real-time connection status:', isConnected);
+    
+    // Auto-authenticate WebSocket when user data is available
+    if (user && user._id) {
+      if (isConnected) {
+        console.log('🔐 Authenticating WebSocket with user:', user._id);
+        webSocketService.authenticate(user._id);
+        localStorage.setItem('userId', user._id);
+      } else {
+        console.log('⏳ Waiting for WebSocket connection before authentication...');
+        // Try to reconnect if not connected
+        webSocketService.reconnect();
+      }
+    }
+    
+    if (user) {
+      console.log('User properties:', {
+        firstName: user.firstName,
+        lastName: user.lastName, 
+        email: user.email,
+        fullName: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : 'Not available'
+      });
+    }
+  }, [user, isConnected]);
 
   // Refresh subscriptions when real-time events occur
   useEffect(() => {
     if (activeSection === 'subscriptions') {
       fetchSubscriptions();
     }
-  }, [refreshSubscriptions]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshSubscriptions, activeSection]);
 
   // Refresh customer stats when real-time events occur or subscriptions change
   useEffect(() => {
-    fetchCustomerStats();
+    fetchCustomerStats(subscriptions);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshSubscriptions, subscriptions]);
 
   const calculateStatsFromSubscriptions = (subs: Subscription[]) => {
@@ -119,7 +183,7 @@ const CustomerDashboard: React.FC = () => {
     };
   };
 
-  const fetchCustomerStats = async () => {
+  const fetchCustomerStats = async (fetchedSubscriptions?: Subscription[]) => {
     try {
       console.log('Fetching customer stats...');
       const statsData = await customerService.getCustomerStats();
@@ -128,14 +192,15 @@ const CustomerDashboard: React.FC = () => {
       console.error('Error fetching customer stats:', error);
       
       // Calculate stats based on current subscription data if available
-      // Get fresh subscriptions to ensure we have the latest data
-      const currentSubs = subscriptions.length > 0 ? subscriptions : [];
-      const calculatedStats = calculateStatsFromSubscriptions(currentSubs);
+      // Use the passed subscriptions or the state subscriptions
+      const subsForCalculation = fetchedSubscriptions || subscriptions;
+      console.log('Current subscriptions for stats calculation:', subsForCalculation);
+      const calculatedStats = calculateStatsFromSubscriptions(subsForCalculation);
       
       console.log('Calculated stats from subscriptions:', {
-        totalSubs: currentSubs.length,
+        totalSubs: subsForCalculation.length,
         activeSubs: calculatedStats.activeSubscriptions,
-        subscriptions: currentSubs.map(s => ({ id: s._id, status: s.status }))
+        subscriptions: subsForCalculation.map(s => ({ id: s._id, status: s.status }))
       });
       
       // Use calculated stats as fallback
@@ -155,14 +220,17 @@ const CustomerDashboard: React.FC = () => {
       if (response?.subscriptions && Array.isArray(response.subscriptions)) {
         console.log('Subscriptions fetched:', response.subscriptions);
         setSubscriptions(response.subscriptions);
+        return response.subscriptions; // Return subscriptions for immediate use
       } else {
         console.warn('Invalid subscriptions data format:', response);
         setSubscriptions([]);
+        return []; // Return empty array for immediate use
       }
     } catch (error) {
       console.error('Error fetching subscriptions:', error);
       // Set empty array as fallback to prevent blank screen
       setSubscriptions([]);
+      return []; // Return empty array for immediate use
     } finally {
       setSectionsLoading(prev => ({ ...prev, subscriptions: false }));
     }
@@ -190,7 +258,16 @@ const CustomerDashboard: React.FC = () => {
     try {
       setSectionsLoading(prev => ({ ...prev, billing: true }));
       const response = await customerService.getBillingHistory();
-      setBillingHistory(response.bills);
+      // Handle response structure safely
+      if (response && Array.isArray(response.bills)) {
+        setBillingHistory(response.bills);
+      } else if (response && Array.isArray((response as any).data)) {
+        setBillingHistory((response as any).data);
+      } else if (Array.isArray(response)) {
+        setBillingHistory(response);
+      } else {
+        setBillingHistory([]);
+      }
     } catch (error) {
       console.error('Error fetching billing history:', error);
       setBillingHistory([]);
@@ -255,17 +332,14 @@ const CustomerDashboard: React.FC = () => {
           // This allows the demo to work even when backend is not available
         }
         
-        // Update local state regardless of API success/failure
-        const updatedSubscriptions = subscriptions.map((sub: Subscription) => 
-          sub._id === selectedSubscription._id 
-            ? { ...sub, status: 'cancelled' as const }
-            : sub
+        // Update local state - remove cancelled subscription from UI
+        const updatedSubscriptions = subscriptions.filter((sub: Subscription) => 
+          sub._id !== selectedSubscription._id
         );
         
         console.log('Updated subscriptions after cancellation:', {
           total: updatedSubscriptions.length,
-          active: updatedSubscriptions.filter((s: Subscription) => s.status === 'active').length,
-          cancelled: updatedSubscriptions.filter((s: Subscription) => s.status === 'cancelled').length
+          active: updatedSubscriptions.filter((s: Subscription) => s.status === 'active').length
         });
         
         setSubscriptions(updatedSubscriptions);
@@ -277,7 +351,7 @@ const CustomerDashboard: React.FC = () => {
         console.log('Updated stats after cancellation:', newStats);
         
         // Refresh customer stats to update subscription count (try API first)
-        await fetchCustomerStats();
+        await fetchCustomerStats(updatedSubscriptions);
         
         // Trigger real-time refresh for other components
         refreshSubscriptions();
@@ -337,6 +411,95 @@ const CustomerDashboard: React.FC = () => {
     }
   };
 
+  // Payment handler functions
+  const handleBillingError = (errorMessage: string) => {
+    setSnackbar({
+      open: true,
+      message: errorMessage,
+      severity: 'error'
+    });
+  };
+
+  const handleBillingSuccess = (message: string) => {
+    setSnackbar({
+      open: true,
+      message: message,
+      severity: 'success'
+    });
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
+  };
+
+  const handlePayBill = (bill: any) => {
+    setSelectedBill(bill);
+    setShowPaymentConfirmModal(true);
+  };
+
+  const confirmPayment = async () => {
+    if (!selectedBill) return;
+    
+    try {
+      setPaymentLoading(true);
+      
+      // Simulate payment processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Update the bill status to paid
+      setBillingHistory(prevHistory => 
+        prevHistory.map(bill => 
+          bill._id === selectedBill._id 
+            ? { 
+                ...bill, 
+                status: 'paid',
+                paidDate: new Date().toISOString()
+              }
+            : bill
+        )
+      );
+      
+      // Update stats to reflect payment
+      setStats(prevStats => ({
+        ...prevStats,
+        monthlySpending: Math.max(0, prevStats.monthlySpending - selectedBill.amount)
+      }));
+      
+      setShowPaymentConfirmModal(false);
+      setSelectedBill(null);
+      
+      alert(`Payment of ₹${selectedBill.amount.toLocaleString()} processed successfully!`);
+    } catch (error) {
+      console.error('Payment failed:', error);
+      alert('Payment failed. Please try again.');
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const handleDownloadReceipt = (bill: any) => {
+    // Simulate receipt download
+    const receiptContent = `
+      BroadbandX Receipt
+      ------------------
+      Bill ID: ${bill._id}
+      Description: ${bill.description}
+      Amount: ₹${bill.amount.toLocaleString()}
+      Status: ${bill.status}
+      Date: ${new Date().toLocaleDateString()}
+    `;
+    
+    const blob = new Blob([receiptContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `receipt-${bill._id}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, value: 'dashboard' },
     { text: 'Browse Plans', icon: <PlansIcon />, value: 'plans' },
@@ -351,11 +514,16 @@ const CustomerDashboard: React.FC = () => {
     <div>
       <Toolbar>
         <Avatar sx={{ mr: 2, bgcolor: 'primary.main' }}>
-          {user?.firstName?.charAt(0) || user?.email?.charAt(0)}
+          {user?.firstName?.charAt(0) || user?.email?.charAt(0) || 'D'}
         </Avatar>
-        <Box>
-          <Typography variant="h6" noWrap>
-            {user?.firstName} {user?.lastName}
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Typography variant="h6" sx={{ wordWrap: 'break-word', lineHeight: 1.2 }}>
+            {user?.firstName && user?.lastName 
+              ? `${user.firstName} ${user.lastName}`
+              : user?.email
+              ? user.email.split('@')[0]
+              : 'Customer'
+            }
           </Typography>
           <Typography variant="caption" color="textSecondary">
             Customer Portal
@@ -421,6 +589,7 @@ const CustomerDashboard: React.FC = () => {
       if (activeSection === 'plans' && availablePlans.length === 0) {
         fetchAvailablePlans();
       }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeSection]);
 
     return (
@@ -503,6 +672,7 @@ const CustomerDashboard: React.FC = () => {
       if (activeSection === 'subscriptions' && subscriptions.length === 0) {
         fetchSubscriptions();
       }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeSection]);
 
     return (
@@ -515,14 +685,14 @@ const CustomerDashboard: React.FC = () => {
           <Box display="flex" justifyContent="center" p={4}>
             <CircularProgress />
           </Box>
-        ) : subscriptions.length > 0 ? (
+        ) : subscriptions.filter(sub => sub.status === 'active').length > 0 ? (
           <Box display="flex" flexWrap="wrap" gap={3}>
-            {subscriptions.map((subscription) => (
+            {subscriptions.filter(sub => sub.status === 'active').map((subscription) => (
               <Card key={subscription._id} sx={{ minWidth: 350, maxWidth: 500, flex: '1 1 350px' }}>
                 <CardContent>
                   <Box display="flex" justifyContent="space-between" alignItems="start" mb={2}>
                     <Typography variant="h6">
-                      {subscription.plan.name}
+                      {subscription.plan?.name || 'Unknown Plan'}
                     </Typography>
                     <Chip 
                       label={subscription.status} 
@@ -532,24 +702,24 @@ const CustomerDashboard: React.FC = () => {
                   </Box>
                   
                   <Typography variant="body2" color="textSecondary" gutterBottom>
-                    {subscription.plan.description}
+                    {subscription.plan?.description || 'No description available'}
                   </Typography>
                   
                   <Box mt={2}>
                     <Typography variant="body2" gutterBottom>
-                      <strong>Speed:</strong> {subscription.plan.features.speed.download} {subscription.plan.features.speed.unit}
+                      <strong>Speed:</strong> {subscription.plan?.features?.speed?.download || 'N/A'} {subscription.plan?.features?.speed?.unit || ''}
                     </Typography>
                     <Typography variant="body2" gutterBottom>
-                      <strong>Monthly Cost:</strong> ₹{(subscription.pricing?.finalPrice || subscription.plan.pricing.monthly)?.toFixed(2)}
+                      <strong>Monthly Cost:</strong> ₹{(subscription.pricing?.finalPrice || subscription.plan?.pricing?.monthly || 0)?.toFixed(2)}
                     </Typography>
                     <Typography variant="body2" gutterBottom>
-                      <strong>Billing Cycle:</strong> {subscription.billingCycle}
+                      <strong>Billing Cycle:</strong> {subscription.billingCycle || 'Monthly'}
                     </Typography>
                     <Typography variant="body2" gutterBottom>
-                      <strong>Start Date:</strong> {new Date(subscription.startDate).toLocaleDateString()}
+                      <strong>Start Date:</strong> {subscription.startDate ? new Date(subscription.startDate).toLocaleDateString() : 'N/A'}
                     </Typography>
                     <Typography variant="body2" gutterBottom>
-                      <strong>Next Billing:</strong> {new Date(subscription.nextBillingDate).toLocaleDateString()}
+                      <strong>Next Billing:</strong> {subscription.nextBillingDate ? new Date(subscription.nextBillingDate).toLocaleDateString() : 'N/A'}
                     </Typography>
                   </Box>
 
@@ -599,129 +769,9 @@ const CustomerDashboard: React.FC = () => {
   };
 
   const BillingSection = () => {
-    useEffect(() => {
-      if (activeSection === 'billing' && billingHistory.length === 0) {
-        fetchBillingHistory();
-      }
-    }, [activeSection]);
-
     return (
       <Box>
-        <Typography variant="h5" gutterBottom>
-          Billing & Payments
-        </Typography>
-        
-        <Box display="flex" flexWrap="wrap" gap={3} mb={3}>
-          {stats.activeSubscriptions > 0 ? (
-            <>
-              <StatCard 
-                title="Next Bill Amount" 
-                value={`₹${stats.monthlySpending.toLocaleString()}`}
-                icon={<Payment sx={{ fontSize: 40 }} />} 
-                color="info" 
-              />
-              <StatCard 
-                title="Due Date" 
-                value="Oct 15" 
-                icon={<BillingIcon sx={{ fontSize: 40 }} />} 
-                color="secondary" 
-              />
-              <StatCard 
-                title="Monthly Average" 
-                value={`₹${stats.monthlySpending.toLocaleString()}`}
-                icon={<TrendingUp sx={{ fontSize: 40 }} />} 
-                color="success" 
-              />
-            </>
-          ) : (
-            <StatCard 
-              title="Subscription Status" 
-              value="No active subscription"
-              icon={<SubscriptionsIcon sx={{ fontSize: 40 }} />} 
-              color="info" 
-            />
-          )}
-        </Box>
-
-        {sectionsLoading.billing ? (
-          <Box display="flex" justifyContent="center" p={4}>
-            <CircularProgress />
-          </Box>
-        ) : stats.activeSubscriptions === 0 && billingHistory.length === 0 ? (
-          <Card>
-            <CardContent>
-              <Box textAlign="center" py={4}>
-                <Typography variant="h6" gutterBottom color="textSecondary">
-                  No Billing History
-                </Typography>
-                <Typography variant="body2" color="textSecondary" paragraph>
-                  You haven't subscribed to any plans yet.
-                </Typography>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  startIcon={<PlansIcon />}
-                  onClick={() => setActiveSection('plans')}
-                >
-                  Browse Plans
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Billing History
-              </Typography>
-              
-              <TableContainer component={Paper}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Description</TableCell>
-                      <TableCell>Amount</TableCell>
-                      <TableCell>Due Date</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {billingHistory.map((bill) => (
-                      <TableRow key={bill._id}>
-                        <TableCell>{bill.description}</TableCell>
-                        <TableCell>₹{bill.amount.toLocaleString()}</TableCell>
-                        <TableCell>{new Date(bill.dueDate).toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          <Chip 
-                            label={bill.status} 
-                            color={
-                              bill.status === 'paid' ? 'success' : 
-                              bill.status === 'pending' ? 'warning' : 'error'
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {bill.status === 'pending' && (
-                            <Button size="small" variant="contained" color="primary">
-                              Pay Now
-                            </Button>
-                          )}
-                          {bill.status === 'paid' && (
-                            <Button size="small" variant="outlined">
-                              Download Receipt
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
-        )}
+        <BillingDashboard onError={handleBillingError} onSuccess={handleBillingSuccess} />
       </Box>
     );
   };
@@ -748,31 +798,9 @@ const CustomerDashboard: React.FC = () => {
           </Card>
         );
       case 'support':
-        return (
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Support Center
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Support ticket management will be implemented here.
-              </Typography>
-            </CardContent>
-          </Card>
-        );
+        return <SupportCenter />;
       case 'settings':
-        return (
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Account Settings
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Profile management and settings will be implemented here.
-              </Typography>
-            </CardContent>
-          </Card>
-        );
+        return <AccountSettingsSimple />;
       default:
         return (
           <Box>
@@ -899,8 +927,8 @@ const CustomerDashboard: React.FC = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
             <Chip
               size="small"
-              label={isConnected ? 'Connected' : 'Offline'}
-              color={isConnected ? 'success' : 'error'}
+              label={isConnected ? 'Connected' : 'Connecting...'}
+              color={isConnected ? 'success' : 'warning'}
               sx={{ mr: 1 }}
             />
             {notifications.length > 0 && (
@@ -910,8 +938,13 @@ const CustomerDashboard: React.FC = () => {
             )}
           </Box>
           
-          <Typography variant="body2" sx={{ mr: 2 }}>
-            {user?.firstName ? `${user.firstName} ${user.lastName}` : user?.email}
+          <Typography variant="body2" sx={{ mr: 2, flexShrink: 0, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {user?.firstName && user?.lastName 
+              ? `${user.firstName} ${user.lastName}`
+              : user?.email
+              ? user.email.split('@')[0]
+              : 'Customer'
+            }
           </Typography>
         </Toolbar>
       </AppBar>
@@ -1162,6 +1195,79 @@ const CustomerDashboard: React.FC = () => {
           )}
         </ModalBody>
       </Modal>
+
+      {/* Payment Confirmation Modal */}
+      <Modal 
+        isOpen={showPaymentConfirmModal} 
+        onClose={() => setShowPaymentConfirmModal(false)}
+        title="Confirm Payment"
+        size="md"
+      >
+        <ModalBody>
+          {selectedBill && (
+            <Box>
+              <Typography variant="h5" gutterBottom>
+                Confirm Payment
+              </Typography>
+              
+              <Box my={2}>
+                <Typography variant="body1" gutterBottom>
+                  <strong>Bill Details:</strong>
+                </Typography>
+                <Typography variant="body2" color="text.secondary" paragraph>
+                  {selectedBill.description}
+                </Typography>
+                
+                <Typography variant="body1" gutterBottom>
+                  <strong>Amount:</strong> ₹{selectedBill.amount.toLocaleString()}
+                </Typography>
+                
+                <Typography variant="body1" gutterBottom>
+                  <strong>Due Date:</strong> {new Date(selectedBill.dueDate).toLocaleDateString()}
+                </Typography>
+              </Box>
+              
+              <Typography variant="body2" color="text.secondary" paragraph>
+                Are you sure you want to proceed with this payment? The amount will be processed immediately.
+              </Typography>
+
+              <Box display="flex" gap={2} justifyContent="flex-end">
+                <Button 
+                  variant="outlined" 
+                  onClick={() => setShowPaymentConfirmModal(false)}
+                  disabled={paymentLoading}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="contained" 
+                  color="primary"
+                  onClick={confirmPayment}
+                  disabled={paymentLoading}
+                >
+                  {paymentLoading ? 'Processing...' : `Pay ₹${selectedBill.amount.toLocaleString()}`}
+                </Button>
+              </Box>
+            </Box>
+          )}
+        </ModalBody>
+      </Modal>
+
+      {/* Error/Success Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={handleCloseSnackbar} 
+          severity={snackbar.severity}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

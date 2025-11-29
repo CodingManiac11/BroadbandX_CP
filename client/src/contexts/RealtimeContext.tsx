@@ -27,22 +27,63 @@ interface RealtimeProviderProps {
 
 export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionAttempts, setConnectionAttempts] = useState(0);
   const [connectionId, setConnectionId] = useState<string>();
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<RealtimeNotification[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
-    // Check connection status periodically
+    // Initialize WebSocket connection with less aggressive checking
+    console.log('🔄 Initializing WebSocket connection...');
+    if (!webSocketService.isConnected) {
+      webSocketService.reconnect();
+    }
+
+    // Simple connection status check - only run a few times
+    let attempts = 0;
+    const maxAttempts = 3;
     const checkConnection = () => {
-      setIsConnected(webSocketService.isConnected);
+      const wasConnected = isConnected;
+      const nowConnected = webSocketService.isConnected;
+      
+      console.log('🔍 WebSocket status check:', { wasConnected, nowConnected, attempts });
+      
+      if (wasConnected !== nowConnected) {
+        console.log(`🔄 Connection status changed: ${wasConnected} → ${nowConnected}`);
+        setIsConnected(nowConnected);
+      }
+      
+      // Only try to reconnect a few times, then give up
+      if (!nowConnected && attempts < maxAttempts) {
+        console.log('🔄 Attempting WebSocket reconnection:', attempts + 1);
+        attempts++;
+        try {
+          webSocketService.connect();
+        } catch (error) {
+          console.warn('Failed to connect WebSocket:', error);
+        }
+      }
+      
       setConnectionId(webSocketService.connectionId);
     };
 
-    const interval = setInterval(checkConnection, 1000);
-    checkConnection(); // Initial check
+    // Initial connection check
+    checkConnection();
 
-    // Setup event listeners
+    // Only do a couple more checks, then stop
+    const timeouts = [
+      setTimeout(checkConnection, 2000),  // Check after 2s
+      setTimeout(checkConnection, 5000),  // Check after 5s
+      setTimeout(checkConnection, 10000)  // Final check after 10s
+    ];
+
+    // Cleanup function to clear timeouts
+    return () => {
+      timeouts.forEach(clearTimeout);
+    };
+
+    // Setup event listeners only - no aggressive checking
     const handleSubscriptionCreated = (data: any) => {
       console.log('🔔 Subscription created:', data);
       
@@ -215,8 +256,6 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
     webSocketService.subscribeToUpdates();
 
     return () => {
-      clearInterval(interval);
-      
       // Cleanup event listeners
       webSocketService.off('subscription_created', handleSubscriptionCreated);
       webSocketService.off('subscription_cancelled', handleSubscriptionCancelled);

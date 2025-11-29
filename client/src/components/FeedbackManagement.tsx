@@ -58,7 +58,7 @@ const FeedbackManagement: React.FC = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/feedback', {
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/feedback`, {
         headers: { Authorization: `Bearer ${token}` },
         params: {
           page: reset ? 1 : page,
@@ -99,7 +99,7 @@ const FeedbackManagement: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.put(
-        `/api/feedback/${selectedFeedback._id}`,
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/feedback/${selectedFeedback._id}`,
         { response, status: 'responded' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -240,7 +240,7 @@ const FeedbackManagement: React.FC = () => {
               </div>
               <div className="flex items-center space-x-2">
                 <span className={`px-3 py-1 rounded-full text-sm ${getStatusColor(item.status)}`}>
-                  {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                  {(item.status || 'unknown').charAt(0).toUpperCase() + (item.status || 'unknown').slice(1)}
                 </span>
                 <span className={`${getSentimentColor(item.sentiment)}`}>
                   {item.sentiment === 'positive' ? (

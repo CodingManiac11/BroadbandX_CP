@@ -55,7 +55,7 @@ const FeedbackAnalytics: React.FC = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get(`/api/feedback/stats?timeframe=${timeframe}`, {
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/feedback/stats?timeframe=${timeframe}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setStats(response.data.data);

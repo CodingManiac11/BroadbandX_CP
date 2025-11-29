@@ -1,5 +1,5 @@
 import { apiClient, handleApiResponse, handleApiError } from './api';
-import { User, ApiResponse } from '../types';
+import { User, ApiResponse } from '../types/index';
 import { Plan, Subscription } from '../types/index';
 import { tokenManager } from './api';
 
@@ -50,239 +50,57 @@ export const customerService = {
   getCustomerSubscriptions: async (): Promise<{ subscriptions: Subscription[] }> => {
     try {
       console.log('Making API call to get customer subscriptions...');
-      const response = await apiClient.get<ApiResponse<{ subscriptions: Subscription[] }>>('/subscriptions/my-subscriptions');
+      console.log('Token available:', !!tokenManager.getToken());
+      
+      // Only fetch active subscriptions
+      const response = await apiClient.get<ApiResponse<{ subscriptions: Subscription[] }>>('/customer/subscriptions');
       const result = handleApiResponse<{ subscriptions: Subscription[] }>(response);
-      console.log('Successfully fetched subscriptions from API:', result);
-      return result;
+      console.log('Successfully fetched active subscriptions from API:', result);
+      
+      // Filter out any non-active subscriptions (double check)
+      const activeSubscriptions = result.subscriptions.filter(sub => sub.status === 'active');
+      
+      activeSubscriptions.forEach((sub, index) => {
+        console.log(`Active Subscription ${index + 1}: ${sub.plan?.name || 'Unknown Plan'} - Status: ${sub.status}`);
+      });
+      
+      return { subscriptions: activeSubscriptions };
     } catch (error) {
       console.error('API call failed for subscriptions, error:', handleApiError(error));
       
-      // Only use fallback if it's a network error, not authentication error
+      // Check if it's an authentication error and we need to redirect to login
       const errorMessage = handleApiError(error);
-      if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
-        throw new Error('Authentication required');
+      if (errorMessage.includes('401') || errorMessage.includes('unauthorized') || errorMessage.includes('Access token is required') || errorMessage.includes('Invalid token')) {
+        console.error('Authentication failed - user needs to log in again');
+        // Clear invalid tokens
+        tokenManager.clearTokens();
+        // Redirect to login
+        window.location.href = '/login';
+        throw new Error('Authentication required - redirecting to login');
       }
       
-      console.warn('Using fallback data due to API error');
+      console.warn('API error - no backend connection. Showing empty subscriptions:', errorMessage);
       
-      // Fallback subscriptions when API is not available
-      const userId = localStorage.getItem('userId') || 'user6';
-      const fallbackSubscriptions: Subscription[] = [
-        {
-          _id: '64f8b8a4c1d2e3f4a5b6c7d8',
-          user: userId,
-          plan: {
-            _id: '68cae95a4cfde6248e98b4f9',
-            name: 'Basic Plan1',
-            description: 'Perfect for light internet usage, browsing, and email',
-            category: 'residential',
-            pricing: {
-              monthly: 57.65,
-              yearly: 577,
-              setupFee: 0,
-              currency: 'INR'
-            },
-            features: {
-              speed: {
-                download: 25,
-                upload: 5,
-                unit: 'Mbps'
-              },
-              dataLimit: {
-                unlimited: true,
-                amount: 0,
-                unit: 'GB'
-              },
-              features: []
-            },
-            availability: {
-              regions: ['India'],
-              cities: ['All Cities']
-            },
-            technicalSpecs: {
-              technology: 'cable',
-              latency: 20,
-              reliability: 99.5,
-              installation: {
-                required: true,
-                fee: 0,
-                timeframe: '2-3 business days'
-              }
-            },
-            targetAudience: 'light-users',
-            contractTerms: {
-              minimumTerm: 12,
-              earlyTerminationFee: 50,
-              autoRenewal: true
-            },
-            popularity: 85,
-            isActive: true,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          },
-          status: 'active',
-          billingCycle: 'monthly',
-          pricing: {
-            basePrice: 57.65,
-            discount: 0,
-            tax: 5.77,
-            finalPrice: 85.95
-          },
-          startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-          endDate: new Date(Date.now() + 335 * 24 * 60 * 60 * 1000).toISOString(),
-          nextBillingDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
-          autoRenewal: true,
-          paymentMethod: 'upi',
-          installation: {
-            scheduled: true,
-            scheduledDate: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
-            completed: true,
-            completedDate: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
-            address: {
-              street: '123 Main St',
-              city: 'Mumbai',
-              state: 'Maharashtra',
-              zipCode: '400001',
-              country: 'India'
-            }
-          },
-          usage: {
-            currentMonth: {
-              dataUsed: 45.6,
-              lastUpdated: new Date().toISOString()
-            }
-          },
-          serviceHistory: [
-            {
-              date: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
-              type: 'Installation',
-              description: 'Service installation completed',
-              performedBy: 'TechTeam'
-            }
-          ],
-          createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date().toISOString()
-        },
-        // Second subscription for user6 - Premium Plan
-        {
-          _id: '64f8b8a4c1d2e3f4a5b6c7d9',
-          user: userId,
-          plan: {
-            _id: '68cae95a4cfde6248e98b5f0',
-            name: 'Premium Plan',
-            description: 'High-speed internet for streaming, gaming, and heavy usage',
-            category: 'residential',
-            pricing: {
-              monthly: 127.45,
-              yearly: 1275,
-              setupFee: 0,
-              currency: 'INR'
-            },
-            features: {
-              speed: {
-                download: 100,
-                upload: 20,
-                unit: 'Mbps'
-              },
-              dataLimit: {
-                unlimited: true,
-                amount: 0,
-                unit: 'GB'
-              },
-              features: []
-            },
-            availability: {
-              regions: ['India'],
-              cities: ['All Cities']
-            },
-            technicalSpecs: {
-              technology: 'fiber',
-              latency: 10,
-              reliability: 99.9,
-              installation: {
-                required: true,
-                fee: 0,
-                timeframe: '1-2 business days'
-              }
-            },
-            targetAudience: 'power-users',
-            contractTerms: {
-              minimumTerm: 12,
-              earlyTerminationFee: 100,
-              autoRenewal: true
-            },
-            popularity: 95,
-            isActive: true,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          },
-          status: 'active',
-          billingCycle: 'monthly',
-          pricing: {
-            basePrice: 127.45,
-            discount: 10,
-            tax: 11.75,
-            finalPrice: 129.20
-          },
-          startDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-          endDate: new Date(Date.now() + 305 * 24 * 60 * 60 * 1000).toISOString(),
-          nextBillingDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-          autoRenewal: true,
-          paymentMethod: 'credit_card',
-          installation: {
-            scheduled: true,
-            scheduledDate: new Date(Date.now() - 55 * 24 * 60 * 60 * 1000).toISOString(),
-            completed: true,
-            completedDate: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(),
-            address: {
-              street: '456 Tech Avenue',
-              city: 'Mumbai',
-              state: 'Maharashtra',
-              zipCode: '400002',
-              country: 'India'
-            }
-          },
-          usage: {
-            currentMonth: {
-              dataUsed: 156.8,
-              lastUpdated: new Date().toISOString()
-            }
-          },
-          serviceHistory: [
-            {
-              date: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(),
-              type: 'Installation',
-              description: 'Fiber service installation completed',
-              performedBy: 'FiberTeam'
-            },
-            {
-              date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-              type: 'Speed Upgrade',
-              description: 'Service upgraded to Premium speed',
-              performedBy: 'TechTeam'
-            }
-          ],
-          createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date().toISOString()
-        }
-      ];
+      // Return empty subscriptions when API is not available (no dummy data)
+      console.log('No subscriptions available - backend not connected');
       
-      return { subscriptions: fallbackSubscriptions };
+      return { subscriptions: [] };
     }
   },
 
-  // Create new subscription (purchase plan)
+  // Create new subscription (direct subscription creation)
   createSubscription: async (subscriptionData: {
     planId: string;
     billingCycle?: 'monthly' | 'yearly';
     installationAddress?: any;
     startDate?: string;
     discountCode?: string;
-  }): Promise<{ subscription: Subscription }> => {
+  }): Promise<{ subscription: any }> => {
     try {
       console.log('Creating subscription with data:', subscriptionData);
-      const response = await apiClient.post<ApiResponse<{ subscription: Subscription }>>('/subscriptions', subscriptionData);
-      const result = handleApiResponse<{ subscription: Subscription }>(response);
+      
+      const response = await apiClient.post<ApiResponse<{ subscription: any }>>('/subscriptions', subscriptionData);
+      const result = handleApiResponse<{ subscription: any }>(response);
       console.log('Subscription created successfully:', result);
       return result;
     } catch (error) {
@@ -291,16 +109,20 @@ export const customerService = {
     }
   },
 
-  // Cancel subscription
-  cancelSubscription: async (subscriptionId: string): Promise<{ subscription: Subscription }> => {
+  // Cancel subscription (direct cancellation)
+  cancelSubscription: async (subscriptionId: string, reason?: string): Promise<{ subscription: any }> => {
     // Check if user is authenticated before making API call
     if (!isAuthenticated()) {
       throw new Error('Authentication required. Please log in again.');
     }
     
     try {
-      const response = await apiClient.put<ApiResponse<{ subscription: Subscription }>>(`/subscriptions/${subscriptionId}/cancel`);
-      return handleApiResponse<{ subscription: Subscription }>(response);
+      const response = await apiClient.put<ApiResponse<{ subscription: any }>>(`/customer/subscriptions/${subscriptionId}/cancel`, {
+        reason: reason || 'Customer requested cancellation'
+      });
+      const result = handleApiResponse<{ subscription: any }>(response);
+      console.log('Subscription cancelled successfully:', result);
+      return result;
     } catch (error) {
       console.error('API error in cancelSubscription:', error);
       // If it's an auth error, provide a clearer message
@@ -312,18 +134,27 @@ export const customerService = {
     }
   },
 
-  // Modify/upgrade subscription
-  modifySubscription: async (subscriptionId: string, newPlanId: string): Promise<{ subscription: Subscription }> => {
+  // Modify/upgrade subscription (direct modification)
+  modifySubscription: async (subscriptionId: string, newPlanId: string, options?: {
+    reason?: string;
+    billingCycle?: 'monthly' | 'yearly';
+  }): Promise<{ subscription: any }> => {
     // Check if user is authenticated before making API call
     if (!isAuthenticated()) {
       throw new Error('Authentication required. Please log in again.');
     }
     
     try {
-      const response = await apiClient.put<ApiResponse<{ subscription: Subscription }>>(`/subscriptions/${subscriptionId}/upgrade`, {
-        planId: newPlanId
-      });
-      return handleApiResponse<{ subscription: Subscription }>(response);
+      const subscriptionData = {
+        newPlanId,
+        billingCycle: options?.billingCycle || 'monthly',
+        reason: options?.reason || 'Plan modification request'
+      };
+      
+      const response = await apiClient.put<ApiResponse<{ subscription: any }>>(`/customer/subscriptions/${subscriptionId}/modify`, subscriptionData);
+      const result = handleApiResponse<{ subscription: any }>(response);
+      console.log('Subscription modified successfully:', result);
+      return result;
     } catch (error) {
       console.error('API error in modifySubscription:', error);
       // If it's an auth error, provide a clearer message

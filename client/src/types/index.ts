@@ -1,5 +1,5 @@
 // API Configuration and Types
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
 // User Types
 export interface User {
@@ -80,6 +80,7 @@ export interface Plan {
     earlyTerminationFee: number;
     autoRenewal: boolean;
   };
+  status?: 'active' | 'inactive' | 'draft';
   isActive: boolean;
   popularity: number;
   createdAt: string;
@@ -89,7 +90,15 @@ export interface Plan {
 // Subscription Types
 export interface Subscription {
   _id: string;
-  user: string;
+  user: string | {
+    _id: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    fullName?: string;
+    isLocked?: boolean;
+    id?: string;
+  };
   plan: Plan;
   status: 'active' | 'suspended' | 'cancelled' | 'pending';
   startDate: string;
@@ -254,8 +263,13 @@ export interface AuthResponse {
 // Dashboard Analytics Types
 export interface DashboardStats {
   totalUsers: number;
+  totalCustomers: number;
   activeSubscriptions: number;
   totalRevenue: number;
+  monthlyRevenue: number;
+  newUsersThisMonth: number;
+  userGrowthRate: number;
+  expiringSoon: number;
   averageUsage: number;
   planPopularity: Array<{
     planName: string;

@@ -14,8 +14,10 @@ const {
   updateUsage,
   scheduleInstallation,
   addPayment,
-  getPaymentHistory
+  getPaymentHistory,
+  getPlanHistory
 } = require('../controllers/subscriptionController');
+const { getEnhancedPlanHistory } = require('../controllers/planHistoryController');
 const { authenticateToken, ownerOrAdmin, adminOnly } = require('../middleware/auth');
 const router = express.Router();
 
@@ -25,6 +27,8 @@ router.use(authenticateToken);
 // Customer routes
 router.post('/', createSubscription);
 router.get('/my-subscriptions', getUserSubscriptions);
+router.get('/plan-history', getEnhancedPlanHistory); // Use enhanced version
+router.get('/plan-history-old', getPlanHistory); // Keep old version as backup
 router.get('/:id', ownerOrAdmin('user'), getSubscriptionById);
 router.put('/:id/cancel', ownerOrAdmin('user'), cancelSubscription);
 router.put('/:id/upgrade', ownerOrAdmin('user'), upgradePlan);

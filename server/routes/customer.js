@@ -13,15 +13,17 @@ router.get('/stats', customerController.getCustomerStats);
 router.get('/subscriptions', customerController.getCustomerSubscriptions);
 router.post('/subscriptions', customerController.subscribeToPlan);
 router.put('/subscriptions/:subscriptionId/cancel', customerController.cancelSubscription);
+router.put('/subscriptions/:subscriptionId/modify', customerController.modifySubscription);
 
 // Plan browsing
 router.get('/plans', customerController.getAvailablePlans);
 
 // Usage analytics
-router.get('/usage-analytics', customerController.getUsageAnalytics);
+router.get('/usage-analytics', customerController.getUsageData);
 
 // Billing
 router.get('/billing-history', customerController.getBillingHistory);
+router.get('/billing', customerController.getBillingHistory);
 
 // Profile management
 router.put('/profile', customerController.updateProfile);

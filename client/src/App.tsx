@@ -19,6 +19,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import BrowsePlansPage from './components/BrowsePlansPage';
 import SubscriptionsPage from './pages/SubscriptionsPage';
 import ProfilePage from './pages/ProfilePage';
+import RealTimeTest from './components/RealTimeTest';
 
 // Create Material-UI theme
 const theme = createTheme({
@@ -86,6 +87,7 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/plans" element={<BrowsePlansPage />} />
+            <Route path="/test-realtime" element={<RealTimeTest />} />
 
             {/* Protected customer routes */}
             <Route 

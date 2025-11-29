@@ -1,10 +1,10 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { API_BASE_URL } from '../types';
+import { API_BASE_URL } from '../types/index';
 
 // Create axios instance
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000, // Increased from 10000ms to 30000ms
   headers: {
     'Content-Type': 'application/json',
   },

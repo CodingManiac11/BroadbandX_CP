@@ -2,7 +2,9 @@ const User = require('../models/User');
 const Plan = require('../models/Plan');
 const Subscription = require('../models/Subscription');
 const UsageAnalytics = require('../models/UsageAnalytics');
+const PlanRequest = require('../models/PlanRequest');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { activateSubscription } = require('./subscriptionController');
 const mongoose = require('mongoose');
 
 // @desc    Get dashboard statistics
@@ -18,6 +20,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
   // Get basic counts
   const [
     totalUsers,
+    totalCustomers,
     totalPlans,
     activeSubscriptions,
     totalRevenue,
@@ -25,7 +28,8 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     newUsersThisMonth,
     expiringSoon
   ] = await Promise.all([
-    User.countDocuments({ role: 'customer' }),
+    User.countDocuments(), // All users (including admins)
+    User.countDocuments({ role: 'customer' }), // Only customers
     Plan.countDocuments({ status: 'active' }),
     Subscription.countDocuments({ status: 'active' }),
     Subscription.aggregate([
@@ -110,6 +114,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     status: 'success',
     data: {
       totalUsers,
+      totalCustomers,
       totalPlans,
       activeSubscriptions,
       totalRevenue: totalRevenue[0]?.total || 0,
@@ -723,6 +728,176 @@ const createAdminUser = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Create user
+// @route   POST /api/admin/users
+// @access  Private/Admin
+const createUser = asyncHandler(async (req, res) => {
+  const {
+    firstName,
+    lastName,
+    email,
+    phone,
+    role = 'customer',
+    password, // Allow admin to set custom password
+    address,
+    status = 'active'
+  } = req.body;
+
+  // Generate a secure random password if not provided
+  const defaultPassword = password || 'BroadbandX' + Math.random().toString(36).slice(-8) + '!';
+
+  // Check if user already exists
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'User with this email already exists'
+    });
+  }
+
+  // Provide default address if not provided
+  const userAddress = address || {
+    street: 'Not Provided',
+    city: 'Not Provided', 
+    state: 'Not Provided',
+    zipCode: '00000',
+    country: 'USA'
+  };
+
+  // Create user data
+  const userData = {
+    firstName,
+    lastName,
+    email,
+    phone,
+    password: defaultPassword,
+    role,
+    address: userAddress,
+    status,
+    emailVerified: true, // Admin-created users are verified by default
+    customerSince: new Date(),
+    mustChangePassword: !password // Force password change if using default password
+  };
+
+  const user = await User.create(userData);
+  
+  // Remove password from response but include it in a separate field for admin
+  user.password = undefined;
+
+  res.status(201).json({
+    status: 'success',
+    message: 'User created successfully',
+    data: {
+      user,
+      // Include temporary password for admin to share with user (only if generated)
+      temporaryPassword: !password ? defaultPassword : undefined
+    }
+  });
+});
+
+// @desc    Update user
+// @route   PUT /api/admin/users/:id
+// @access  Private/Admin
+const updateUser = asyncHandler(async (req, res) => {
+  const {
+    firstName,
+    lastName,
+    email,
+    phone,
+    address,
+    status,
+    role
+  } = req.body;
+
+  // Check if user exists
+  const user = await User.findById(req.params.id);
+  if (!user) {
+    return res.status(404).json({
+      status: 'error',
+      message: 'User not found'
+    });
+  }
+
+  // Check if email is being changed and already exists
+  if (email && email !== user.email) {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'User with this email already exists'
+      });
+    }
+  }
+
+  // Update user data
+  const updateData = {
+    ...(firstName && { firstName }),
+    ...(lastName && { lastName }),
+    ...(email && { email }),
+    ...(phone && { phone }),
+    ...(address && { address }),
+    ...(status && { status }),
+    ...(role && { role })
+  };
+
+  const updatedUser = await User.findByIdAndUpdate(
+    req.params.id,
+    updateData,
+    { new: true, runValidators: true }
+  ).select('-password');
+
+  res.status(200).json({
+    status: 'success',
+    message: 'User updated successfully',
+    data: {
+      user: updatedUser
+    }
+  });
+});
+
+// @desc    Delete user
+// @route   DELETE /api/admin/users/:id
+// @access  Private/Admin
+const deleteUser = asyncHandler(async (req, res) => {
+  // Check if user exists
+  const user = await User.findById(req.params.id);
+  if (!user) {
+    return res.status(404).json({
+      status: 'error',
+      message: 'User not found'
+    });
+  }
+
+  // Prevent deleting admin users
+  if (user.role === 'admin') {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Cannot delete admin users'
+    });
+  }
+
+  // Check if user has active subscriptions
+  const activeSubscriptions = await Subscription.countDocuments({
+    user: req.params.id,
+    status: 'active'
+  });
+
+  if (activeSubscriptions > 0) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Cannot delete user with active subscriptions. Please cancel all subscriptions first.'
+    });
+  }
+
+  // Delete user
+  await User.findByIdAndDelete(req.params.id);
+
+  res.status(200).json({
+    status: 'success',
+    message: 'User deleted successfully'
+  });
+});
+
 // @desc    Get system health
 // @route   GET /api/admin/health
 // @access  Private/Admin
@@ -806,6 +981,343 @@ const getAllSubscriptions = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Get all plan requests for admin review
+// @route   GET /api/admin/plan-requests
+// @access  Private/Admin
+const getAllPlanRequests = asyncHandler(async (req, res) => {
+  const { 
+    status = 'pending', 
+    requestType, 
+    priority, 
+    page = 1, 
+    limit = 10,
+    search 
+  } = req.query;
+
+  let query = {};
+  
+  // Filter by status
+  if (status && status !== 'all') {
+    query.status = status;
+  }
+  
+  // Filter by request type
+  if (requestType) {
+    query.requestType = requestType;
+  }
+  
+  // Filter by priority
+  if (priority) {
+    query.priority = { $gte: parseInt(priority) };
+  }
+  
+  // Search by customer name or email
+  if (search) {
+    const customers = await User.find({
+      $or: [
+        { firstName: { $regex: search, $options: 'i' } },
+        { lastName: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ]
+    }).select('_id');
+    
+    query.customer = { $in: customers.map(c => c._id) };
+  }
+
+  const requests = await PlanRequest.find(query)
+    .populate('customer', 'firstName lastName email phone')
+    .populate('requestedPlan', 'name pricing category features')
+    .populate('previousPlan', 'name pricing category')
+    .populate({
+      path: 'currentSubscription',
+      populate: { path: 'plan', select: 'name pricing category' }
+    })
+    .populate('adminAction.reviewedBy', 'firstName lastName')
+    .sort({ priority: -1, createdAt: 1 })
+    .limit(limit * 1)
+    .skip((page - 1) * limit);
+
+  const total = await PlanRequest.countDocuments(query);
+  
+  // Get summary statistics
+  const stats = await PlanRequest.aggregate([
+    {
+      $group: {
+        _id: '$status',
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+  
+  const pendingCount = await PlanRequest.countDocuments({ status: 'pending' });
+  const urgentCount = await PlanRequest.countDocuments({ 
+    status: 'pending', 
+    'requestDetails.urgency': 'high' 
+  });
+
+  res.status(200).json({
+    success: true,
+    data: requests,
+    pagination: {
+      page: parseInt(page),
+      pages: Math.ceil(total / parseInt(limit)),
+      total,
+      limit: parseInt(limit)
+    },
+    summary: {
+      totalPending: pendingCount,
+      urgentRequests: urgentCount,
+      statusBreakdown: stats.reduce((acc, item) => {
+        acc[item._id] = item.count;
+        return acc;
+      }, {})
+    }
+  });
+});
+
+// @desc    Get plan request details
+// @route   GET /api/admin/plan-requests/:id
+// @access  Private/Admin
+const getPlanRequestById = asyncHandler(async (req, res) => {
+  const request = await PlanRequest.findById(req.params.id)
+    .populate('customer', 'firstName lastName email phone address')
+    .populate('requestedPlan', 'name pricing category features')
+    .populate('previousPlan', 'name pricing category')
+    .populate({
+      path: 'currentSubscription',
+      populate: { path: 'plan', select: 'name pricing category features' }
+    })
+    .populate('adminAction.reviewedBy', 'firstName lastName')
+    .populate('history.performedBy', 'firstName lastName');
+
+  if (!request) {
+    return res.status(404).json({
+      status: 'error',
+      message: 'Plan request not found'
+    });
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      request
+    }
+  });
+});
+
+// @desc    Approve a plan request
+// @route   PUT /api/admin/plan-requests/:id/approve
+// @access  Private/Admin
+const approvePlanRequest = asyncHandler(async (req, res) => {
+  const { comments, internalNotes } = req.body;
+  
+  const request = await PlanRequest.findById(req.params.id)
+    .populate('customer')
+    .populate('requestedPlan')
+    .populate('currentSubscription');
+
+  if (!request) {
+    return res.status(404).json({
+      status: 'error',
+      message: 'Plan request not found'
+    });
+  }
+
+  if (request.status !== 'pending') {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Can only approve pending requests'
+    });
+  }
+
+  // Approve the request
+  await request.approve(req.user._id, comments, internalNotes);
+  
+  // Execute the actual plan change based on request type
+  try {
+    let result = {};
+    
+    switch (request.requestType) {
+      case 'new_subscription':
+        // Create new subscription
+        const newSubscription = new Subscription({
+          user: request.customer._id,
+          plan: request.requestedPlan._id,
+          billingCycle: request.requestDetails.billingCycle,
+          status: 'active',
+          pricing: {
+            basePrice: request.requestedPlan.pricing.monthly,
+            finalPrice: request.pricing.newAmount,
+            currency: 'INR'
+          }
+        });
+        await newSubscription.save();
+        result.subscription = newSubscription;
+        break;
+        
+      case 'plan_change':
+      case 'plan_upgrade':
+      case 'plan_downgrade':
+        // Update existing subscription
+        if (request.currentSubscription) {
+          request.currentSubscription.plan = request.requestedPlan._id;
+          request.currentSubscription.pricing.finalPrice = request.pricing.newAmount;
+          await request.currentSubscription.save();
+          result.subscription = request.currentSubscription;
+        }
+        break;
+        
+      case 'cancel_subscription':
+        // Cancel subscription
+        if (request.currentSubscription) {
+          request.currentSubscription.status = 'cancelled';
+          await request.currentSubscription.save();
+          result.subscription = request.currentSubscription;
+        }
+        break;
+    }
+
+    // Emit real-time event for approval
+    if (global.realTimeEvents) {
+      global.realTimeEvents.planRequestApproved(request.customer._id, request, req.user._id);
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Plan request approved successfully',
+      data: {
+        request,
+        result
+      }
+    });
+
+  } catch (error) {
+    // If execution fails, revert the approval
+    request.status = 'pending';
+    await request.save();
+    
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to execute plan change after approval',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Reject a plan request
+// @route   PUT /api/admin/plan-requests/:id/reject
+// @access  Private/Admin
+const rejectPlanRequest = asyncHandler(async (req, res) => {
+  const { comments, internalNotes } = req.body;
+  
+  const request = await PlanRequest.findById(req.params.id);
+
+  if (!request) {
+    return res.status(404).json({
+      status: 'error',
+      message: 'Plan request not found'
+    });
+  }
+
+  if (request.status !== 'pending') {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Can only reject pending requests'
+    });
+  }
+
+  await request.reject(req.user._id, comments, internalNotes);
+
+  // Emit real-time event for rejection
+  if (global.realTimeEvents) {
+    global.realTimeEvents.planRequestRejected(request.customer, request, req.user._id, comments);
+  }
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Plan request rejected successfully',
+    data: {
+      request
+    }
+  });
+});
+
+// @desc    Get plan request analytics
+// @route   GET /api/admin/plan-requests/analytics
+// @access  Private/Admin
+const getPlanRequestAnalytics = asyncHandler(async (req, res) => {
+  const now = new Date();
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  
+  // Request volume by type
+  const requestsByType = await PlanRequest.aggregate([
+    {
+      $group: {
+        _id: '$requestType',
+        count: { $sum: 1 },
+        pending: {
+          $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] }
+        },
+        approved: {
+          $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] }
+        },
+        rejected: {
+          $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] }
+        }
+      }
+    }
+  ]);
+  
+  // Average approval time
+  const approvalTimes = await PlanRequest.aggregate([
+    {
+      $match: { status: { $in: ['approved', 'rejected'] } }
+    },
+    {
+      $project: {
+        approvalTime: {
+          $subtract: ['$adminAction.reviewedAt', '$createdAt']
+        }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        avgApprovalTime: { $avg: '$approvalTime' }
+      }
+    }
+  ]);
+  
+  // Monthly trend
+  const monthlyTrend = await PlanRequest.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: lastMonth }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: '$createdAt' },
+          month: { $month: '$createdAt' },
+          status: '$status'
+        },
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      requestsByType,
+      averageApprovalTimeHours: approvalTimes[0]?.avgApprovalTime ? 
+        Math.round(approvalTimes[0].avgApprovalTime / (1000 * 60 * 60) * 100) / 100 : 0,
+      monthlyTrend
+    }
+  });
+});
+
 module.exports = {
   getDashboardStats,
   getUserManagement,
@@ -816,7 +1328,16 @@ module.exports = {
   getCustomerInsights,
   getUserById,
   updateUserStatus,
+  createUser,
+  updateUser,
+  deleteUser,
   createAdminUser,
   getSystemHealth,
-  getAllSubscriptions
+  getAllSubscriptions,
+  activateSubscription,
+  getAllPlanRequests,
+  getPlanRequestById,
+  approvePlanRequest,
+  rejectPlanRequest,
+  getPlanRequestAnalytics
 };

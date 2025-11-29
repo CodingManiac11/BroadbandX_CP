@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, LoginCredentials } from '../types';
+import { User, LoginCredentials } from '../types/index';
 import { authService } from '../services/authService';
 import { tokenManager } from '../services/api';
 import webSocketService from '../services/webSocketService';
@@ -80,12 +80,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       console.log('Login successful, received:', { 
         user: authResponse.user,
-        hasToken: !!authResponse.tokens.accessToken
+        hasToken: !!authResponse.tokens.access_token
       });
       
       // Store tokens using tokenManager
-      tokenManager.setToken(authResponse.tokens.accessToken);
-      tokenManager.setRefreshToken(authResponse.tokens.refreshToken);
+      tokenManager.setToken(authResponse.tokens.access_token);
+      tokenManager.setRefreshToken(authResponse.tokens.refresh_token);
       
       // Store additional user info for backward compatibility
       localStorage.setItem('userId', authResponse.user._id);
@@ -131,13 +131,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       console.log('Registration successful:', {
         user: authResponse.user,
-        hasToken: !!authResponse.tokens.accessToken
+        hasToken: !!authResponse.tokens.access_token
       });
       
       // Set user with proper role from response
       setUser(authResponse.user);
-      tokenManager.setToken(authResponse.tokens.accessToken);
-      tokenManager.setRefreshToken(authResponse.tokens.refreshToken);
+      tokenManager.setToken(authResponse.tokens.access_token);
+      tokenManager.setRefreshToken(authResponse.tokens.refresh_token);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
       throw err;
@@ -155,7 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const token = tokenManager.getToken();
       if (token) {
         try {
-          await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/auth/logout`, {
+          await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/auth/logout`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,

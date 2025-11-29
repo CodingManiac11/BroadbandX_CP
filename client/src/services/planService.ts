@@ -4,7 +4,7 @@ import {
   PlanFilters, 
   PlanCreateRequest,
   ApiResponse 
-} from '../types';
+} from '../types/index';
 
 export const planService = {
   // Get all plans with optional filters

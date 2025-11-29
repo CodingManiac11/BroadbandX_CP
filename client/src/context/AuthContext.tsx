@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, AuthTokens } from '../types';
+import { User, AuthTokens } from '../types/index';
 import { authService } from '../services/authService';
 import { tokenManager } from '../services/api';
 
@@ -72,8 +72,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('Login response received:', response);
       
       // Store tokens
-      tokenManager.setToken(response.tokens.accessToken);
-      tokenManager.setRefreshToken(response.tokens.refreshToken);
+      tokenManager.setToken(response.tokens.access_token);
+      tokenManager.setRefreshToken(response.tokens.refresh_token);
       console.log('Tokens stored successfully');
       
       // Set user data
@@ -94,8 +94,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await authService.register(userData);
       
       // Store tokens
-      tokenManager.setToken(response.tokens.accessToken);
-      tokenManager.setRefreshToken(response.tokens.refreshToken);
+      tokenManager.setToken(response.tokens.access_token);
+      tokenManager.setRefreshToken(response.tokens.refresh_token);
       
       // Set user data
       setUser(response.user);

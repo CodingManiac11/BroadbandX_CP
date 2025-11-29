@@ -20,35 +20,15 @@ import {
   Card,
   CardContent,
   Alert,
-  CircularProgress
+  CircularProgress,
+  Button,
+  Stack
 } from '@mui/material';
-import { Search } from '@mui/icons-material';
+import { Search, Refresh, Error as ErrorIcon } from '@mui/icons-material';
 import { adminService } from '../services/adminService';
-
-interface Subscription {
-  _id: string;
-  user: {
-    email: string;
-    firstName: string;
-    lastName: string;
-  };
-  plan: {
-    name: string;
-    category: string;
-    pricing: {
-      monthly: number;
-      yearly: number;
-    };
-  };
-  status: string;
-  billingCycle: string;
-  startDate: string;
-  endDate: string;
-  pricing: {
-    finalPrice: number;
-  };
-  createdAt: string;
-}
+import { customerService } from '../services/customerService';
+import { useAuth } from '../contexts/AuthContext';
+import { Subscription } from '../types/index';
 
 const SubscriptionsPage: React.FC = () => {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -58,25 +38,75 @@ const SubscriptionsPage: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const { user } = useAuth();
 
   const fetchSubscriptions = async () => {
     try {
       setLoading(true);
-      const response = await adminService.getAllSubscriptions({
-        page,
-        limit: 10,
-        search,
-        status: statusFilter
-      });
+      setError(null); // Clear previous errors
+      console.log('🔍 Fetching subscriptions for user:', user?.email, 'role:', user?.role);
       
-      if (response.success) {
-        setSubscriptions(response.data);
-        setTotalPages(response.pagination?.pages || 1);
+      let response;
+      
+      // Use different service based on user role
+      if (user?.role === 'admin') {
+        console.log('📡 Fetching as admin user...');
+        response = await adminService.getAllSubscriptions({
+          page,
+          limit: 10,
+          search,
+          status: statusFilter === 'all' ? undefined : statusFilter
+        });
+        
+        console.log('📡 Admin subscription response:', JSON.stringify(response, null, 2));
+        
+        if (response && response.success) {
+          const subscriptionData = response.data || [];
+          setSubscriptions(subscriptionData);
+          setTotalPages(response.pagination?.pages || 1);
+          console.log('✅ Admin subscriptions set successfully:', subscriptionData.length, 'items');
+        } else {
+          setError('Failed to fetch subscriptions - Invalid response format');
+        }
       } else {
-        setError('Failed to fetch subscriptions');
+        // Customer user - use customer service
+        console.log('📡 Fetching as customer user...');
+        const customerResponse = await customerService.getCustomerSubscriptions();
+        
+        console.log('📡 Customer subscription response:', JSON.stringify(customerResponse, null, 2));
+        
+        if (customerResponse && customerResponse.subscriptions) {
+          setSubscriptions(customerResponse.subscriptions);
+          setTotalPages(1); // Customer only has their own subscriptions, no pagination needed
+          console.log('✅ Customer subscriptions set successfully:', customerResponse.subscriptions.length, 'items');
+          
+          // Log individual subscription details
+          customerResponse.subscriptions.forEach((sub, index) => {
+            console.log(`📋 Customer Subscription ${index + 1}: ${sub.plan?.name} (${sub.status})`);
+          });
+        } else {
+          console.log('ℹ️ No subscriptions found for customer');
+          setSubscriptions([]);
+        }
       }
+      
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch subscriptions');
+      console.error('💥 Critical error fetching subscriptions:', err);
+      
+      // Enhanced error handling
+      if (err instanceof Error) {
+        if (err.message.includes('Failed to fetch') || err.message.includes('Network')) {
+          setError('Network error: Unable to connect to server. Please check if the backend server is running on port 5001.');
+        } else if (err.message.includes('401') || err.message.includes('unauthorized')) {
+          setError('Authentication error: Please log in again.');
+        } else if (err.message.includes('403') || err.message.includes('forbidden')) {
+          setError('Permission error: You don\'t have access to view subscriptions.');
+        } else {
+          setError(`Error: ${err.message}`);
+        }
+      } else {
+        setError('Unknown error occurred while fetching subscriptions');
+      }
     } finally {
       setLoading(false);
     }
@@ -92,7 +122,6 @@ const SubscriptionsPage: React.FC = () => {
       case 'cancelled': return 'error';
       case 'suspended': return 'warning';
       case 'expired': return 'default';
-      case 'pending': return 'info';
       default: return 'default';
     }
   };
@@ -116,58 +145,85 @@ const SubscriptionsPage: React.FC = () => {
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
-        All Subscriptions
+        {user?.role === 'admin' ? 'All Subscriptions' : 'My Subscriptions'}
       </Typography>
       
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
+        <Alert 
+          severity="error" 
+          sx={{ mb: 2 }}
+          action={
+            <Stack direction="row" spacing={1}>
+              <Button
+                size="small"
+                onClick={fetchSubscriptions}
+                startIcon={<Refresh />}
+                disabled={loading}
+              >
+                Retry
+              </Button>
+            </Stack>
+          }
+          icon={<ErrorIcon />}
+        >
+          <Typography variant="body2" component="div">
+            <strong>Failed to load subscriptions</strong>
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            {error}
+          </Typography>
+          {error.includes('Network error') && (
+            <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
+              💡 Make sure the backend server is running with: <code>cd server && npm run dev</code>
+            </Typography>
+          )}
         </Alert>
       )}
 
       {/* Filters */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-            <TextField
-              placeholder="Search by email or plan name..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ minWidth: 300 }}
-            />
-            
-            <FormControl sx={{ minWidth: 150 }}>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={statusFilter}
-                label="Status"
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <MenuItem value="all">All</MenuItem>
-                <MenuItem value="active">Active</MenuItem>
-                <MenuItem value="cancelled">Cancelled</MenuItem>
-                <MenuItem value="suspended">Suspended</MenuItem>
-                <MenuItem value="expired">Expired</MenuItem>
-                <MenuItem value="pending">Pending</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        </CardContent>
-      </Card>
+      {user?.role === 'admin' && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <TextField
+                placeholder="Search by email or plan name..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ minWidth: 300 }}
+              />
+              
+              <FormControl sx={{ minWidth: 150 }}>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={statusFilter}
+                  label="Status"
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <MenuItem value="all">All Status</MenuItem>
+                  <MenuItem value="active">Active</MenuItem>
+                  <MenuItem value="cancelled">Cancelled</MenuItem>
+                  <MenuItem value="suspended">Suspended</MenuItem>
+                  <MenuItem value="expired">Expired</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Subscriptions Table */}
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Customer</TableCell>
+              {user?.role === 'admin' && <TableCell>Customer</TableCell>}
               <TableCell>Plan</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>Billing Cycle</TableCell>
@@ -180,23 +236,29 @@ const SubscriptionsPage: React.FC = () => {
           <TableBody>
             {subscriptions.map((subscription) => (
               <TableRow key={subscription._id}>
+                {user?.role === 'admin' && (
+                  <TableCell>
+                    <Box>
+                      <Typography variant="body2" fontWeight="bold">
+                        {typeof subscription.user === 'object' && subscription.user ? 
+                          `${subscription.user.firstName || ''} ${subscription.user.lastName || ''}`.trim() || subscription.user.email :
+                          subscription.user || 'N/A'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {typeof subscription.user === 'object' && subscription.user ? 
+                          subscription.user.email : 
+                          'User details not populated'}
+                      </Typography>
+                    </Box>
+                  </TableCell>
+                )}
                 <TableCell>
                   <Box>
                     <Typography variant="body2" fontWeight="bold">
-                      {subscription.user.firstName} {subscription.user.lastName}
+                      {subscription.plan?.name || 'Unknown Plan'}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {subscription.user.email}
-                    </Typography>
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  <Box>
-                    <Typography variant="body2" fontWeight="bold">
-                      {subscription.plan.name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {subscription.plan.category}
+                      {subscription.plan?.category || 'N/A'}
                     </Typography>
                   </Box>
                 </TableCell>
@@ -209,17 +271,17 @@ const SubscriptionsPage: React.FC = () => {
                 </TableCell>
                 <TableCell>
                   <Chip 
-                    label={subscription.billingCycle.toUpperCase()} 
+                    label={(subscription.billingCycle || 'monthly').toUpperCase()} 
                     variant="outlined"
                     size="small"
                   />
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2" fontWeight="bold">
-                    {formatPrice(subscription.pricing.finalPrice)}
+                    {formatPrice(subscription.pricing?.finalPrice || subscription.pricing?.totalAmount || 0)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    /{subscription.billingCycle}
+                    /{subscription.billingCycle || 'monthly'}
                   </Typography>
                 </TableCell>
                 <TableCell>{formatDate(subscription.startDate)}</TableCell>
@@ -234,8 +296,13 @@ const SubscriptionsPage: React.FC = () => {
       {subscriptions.length === 0 && !loading && (
         <Box sx={{ textAlign: 'center', py: 4 }}>
           <Typography variant="h6" color="text.secondary">
-            No subscriptions found
+            {user?.role === 'admin' ? 'No subscriptions found' : 'You don\'t have any subscriptions yet'}
           </Typography>
+          {user?.role === 'customer' && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Browse our plans and subscribe to get started!
+            </Typography>
+          )}
         </Box>
       )}
 

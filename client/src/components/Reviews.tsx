@@ -128,7 +128,7 @@ const Reviews: React.FC<ReviewsProps> = ({ type, limit = 10 }) => {
             ? 'bg-purple-100 text-purple-800'
             : 'bg-gray-100 text-gray-800'
         }`}>
-          {review.type.charAt(0).toUpperCase() + review.type.slice(1)}
+          {(review.type || 'unknown').charAt(0).toUpperCase() + (review.type || 'unknown').slice(1)}
         </span>
       </div>
     </motion.div>

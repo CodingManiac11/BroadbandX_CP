@@ -1,29 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import * as MUI from '@mui/material';
 import * as Icons from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { adminService } from '../services/adminService';
-import { User, Subscription } from '../types';
+import { User, Subscription, DashboardStats } from '../types/index';
 import StatCard from '../components/StatCard';
 import UserManagementContainer from '../components/UserManagementContainer';
 import SubscriptionsPage from './SubscriptionsPage';
+import PlanRequestManagement from '../components/PlanRequestManagement';
 
-interface DashboardData {
+// API Response type that matches what backend actually returns
+interface DashboardStatsResponse {
   totalUsers: number;
+  totalCustomers: number;
+  totalPlans: number;
   activeSubscriptions: number;
   totalRevenue: number;
   monthlyRevenue: number;
   newUsersThisMonth: number;
-  expiringSoon: number;
   userGrowthRate: number;
+  expiringSoon: number;
+  subscriptionsByStatus: Array<{ _id: string; count: number }>;
+  popularPlansThisMonth: any[];
+  recentUsers: any[];
+  recentSubscriptions: any[];
 }
 
 const AdminDashboard: React.FC = () => {
   const { logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('dashboard');
-  const [dashboardData, setDashboardData] = useState<DashboardData>({
+  const [dashboardData, setDashboardData] = useState<Partial<DashboardStatsResponse>>({
     totalUsers: 0,
+    totalCustomers: 0,
     activeSubscriptions: 0,
     totalRevenue: 0,
     monthlyRevenue: 0,
@@ -36,20 +45,19 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     setError(null);
     
     try {
       // Fetch dashboard stats
-      const stats = await adminService.getDashboardStats();
+      const stats = await adminService.getDashboardStats() as unknown as DashboardStatsResponse;
+      
+      console.log('Dashboard stats received:', stats);
       
       setDashboardData({
         totalUsers: stats.totalUsers || 0,
+        totalCustomers: stats.totalCustomers || 0,
         activeSubscriptions: stats.activeSubscriptions || 0,
         totalRevenue: stats.totalRevenue || 0,
         monthlyRevenue: stats.monthlyRevenue || 0,
@@ -76,7 +84,30 @@ const AdminDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeSection]);
+
+  // Function to refresh dashboard stats only (for real-time updates)
+  const refreshDashboardStats = useCallback(async () => {
+    try {
+      const stats = await adminService.getDashboardStats() as unknown as DashboardStatsResponse;
+      setDashboardData({
+        totalUsers: stats.totalUsers || 0,
+        totalCustomers: stats.totalCustomers || 0,
+        activeSubscriptions: stats.activeSubscriptions || 0,
+        totalRevenue: stats.totalRevenue || 0,
+        monthlyRevenue: stats.monthlyRevenue || 0,
+        newUsersThisMonth: stats.newUsersThisMonth || 0,
+        expiringSoon: stats.expiringSoon || 0,
+        userGrowthRate: stats.userGrowthRate || 0
+      });
+    } catch (err) {
+      console.error('Failed to refresh dashboard stats:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
   const handleSectionChange = (section: string) => {
     setActiveSection(section);
@@ -117,6 +148,7 @@ const AdminDashboard: React.FC = () => {
     { text: 'Dashboard', icon: <Icons.Dashboard />, section: 'dashboard' },
     { text: 'Users', icon: <Icons.People />, section: 'users' },
     { text: 'Subscriptions', icon: <Icons.Subscriptions />, section: 'subscriptions' },
+    { text: 'Plan Requests', icon: <Icons.Assignment />, section: 'plan-requests' },
     { text: 'AI Pricing', icon: <Icons.Psychology />, section: 'ai-pricing' },
     { text: 'Logout', icon: <Icons.ExitToApp />, section: 'logout' }
   ];
@@ -181,7 +213,7 @@ const AdminDashboard: React.FC = () => {
       <MUI.Box 
         sx={{ 
           display: 'grid', 
-          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' },
+          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr 1fr' },
           gap: 3,
           mb: 4 
         }}
@@ -189,15 +221,23 @@ const AdminDashboard: React.FC = () => {
         <MUI.Box>
           <StatCard
             title="Total Users"
-            value={dashboardData.totalUsers}
+            value={dashboardData.totalUsers || 0}
             icon={<Icons.People />}
             color="primary"
           />
         </MUI.Box>
         <MUI.Box>
           <StatCard
+            title="Total Customers"
+            value={dashboardData.totalCustomers || 0}
+            icon={<Icons.PersonAdd />}
+            color="secondary"
+          />
+        </MUI.Box>
+        <MUI.Box>
+          <StatCard
             title="Active Subscriptions"
-            value={dashboardData.activeSubscriptions}
+            value={dashboardData.activeSubscriptions || 0}
             icon={<Icons.Subscriptions />}
             color="success"
           />
@@ -205,7 +245,7 @@ const AdminDashboard: React.FC = () => {
         <MUI.Box>
           <StatCard
             title="Total Revenue"
-            value={`$${dashboardData.totalRevenue.toLocaleString()}`}
+            value={`$${(dashboardData.totalRevenue || 0).toLocaleString()}`}
             icon={<Icons.AttachMoney />}
             color="info"
           />
@@ -213,7 +253,7 @@ const AdminDashboard: React.FC = () => {
         <MUI.Box>
           <StatCard
             title="Monthly Revenue"
-            value={`$${dashboardData.monthlyRevenue.toLocaleString()}`}
+            value={`$${(dashboardData.monthlyRevenue || 0).toLocaleString()}`}
             icon={<Icons.TrendingUp />}
             color="warning"
           />
@@ -242,7 +282,7 @@ const AdminDashboard: React.FC = () => {
               <MUI.ListItem>
                 <MUI.ListItemText 
                   primary="User Growth Rate" 
-                  secondary={`${dashboardData.userGrowthRate.toFixed(1)}%`} 
+                  secondary={`${(dashboardData.userGrowthRate || 0).toFixed(1)}%`} 
                 />
               </MUI.ListItem>
               <MUI.ListItem>
@@ -436,9 +476,11 @@ const AdminDashboard: React.FC = () => {
       case 'dashboard':
         return renderDashboard();
       case 'users':
-        return <UserManagementContainer />;
+        return <UserManagementContainer onDataChange={refreshDashboardStats} />;
       case 'subscriptions':
         return <SubscriptionsPage />;
+      case 'plan-requests':
+        return <PlanRequestManagement />;
       case 'ai-pricing':
         return renderAIPricing();
       default:

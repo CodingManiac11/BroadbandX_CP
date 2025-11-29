@@ -18,18 +18,19 @@ class WebSocketService {
     if (this.isConnecting || this.socket?.connected) return;
     
     this.isConnecting = true;
-    const serverUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+    const serverUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
     console.log('🔌 Connecting to WebSocket server at:', serverUrl);
 
     this.socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
-      timeout: 10000,
+      timeout: 15000, // Increased timeout
       forceNew: false,
       reconnection: true,
       reconnectionAttempts: this.maxRetries,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
+      autoConnect: true, // Ensure auto-connect is enabled
     });
 
     this.setupEventHandlers();
@@ -191,9 +192,37 @@ class WebSocketService {
 
   // Reconnect manually
   reconnect() {
-    if (!this.isConnected && !this.isConnecting) {
-      this.initializeConnection();
+    console.log('🔄 Manual reconnect called, current status:', {
+      connected: this.socket?.connected,
+      connecting: this.isConnecting,
+      attempts: this.connectionAttempts
+    });
+    
+    if (this.socket?.connected) {
+      console.log('✅ Already connected, no reconnection needed');
+      return;
     }
+    
+    if (this.isConnecting) {
+      console.log('⏳ Connection already in progress');
+      return;
+    }
+    
+    // Force disconnect and clean reconnect
+    if (this.socket) {
+      console.log('🔌 Disconnecting old socket for fresh connection');
+      this.socket.disconnect();
+      this.socket.removeAllListeners();
+      this.socket = null;
+    }
+    
+    this.isConnecting = false;
+    this.initializeConnection();
+  }
+  
+  // Public connect method for manual connection
+  connect() {
+    this.reconnect();
   }
 }
 

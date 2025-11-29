@@ -7,7 +7,10 @@ const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
-require('dotenv').config();
+const path = require('path');
+
+// Load environment variables from root directory
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -15,6 +18,7 @@ const userRoutes = require('./routes/users');
 const planRoutes = require('./routes/plans');
 const subscriptionRoutes = require('./routes/subscriptions');
 const adminRoutes = require('./routes/admin');
+const planRequestRoutes = require('./routes/planRequests');
 // const analyticsRoutes = require('./routes/analytics');
 const recommendationRoutes = require('./routes/recommendations');
 const pricingRoutes = require('./routes/pricing');
@@ -47,12 +51,13 @@ app.use(compression());
 // Rate limiting - More lenient in development
 const limiter = rateLimit({
   windowMs: (process.env.RATE_LIMIT_WINDOW || 15) * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'development' ? 1000 : (process.env.RATE_LIMIT_MAX_REQUESTS || 100), // Higher limit for development
+  max: process.env.NODE_ENV === 'development' ? 10000 : (process.env.RATE_LIMIT_MAX_REQUESTS || 100), // Much higher limit for development
   message: {
     error: 'Too many requests from this IP, please try again later.',
   },
 });
-app.use('/api/', limiter);
+// Temporarily disable rate limiting for debugging
+// app.use('/api/', limiter);
 
 // CORS configuration - More permissive for development
 const corsOptions = {
@@ -96,15 +101,15 @@ if (process.env.NODE_ENV === 'development') {
 // MongoDB connection with improved error handling and retry logic
 const connectDB = async () => {
   try {
-    // Check if MONGODB_URI exists
-    if (!process.env.MONGODB_URI) {
-      console.error('❌ MONGODB_URI not found in environment variables');
+    // Check if MONGO_URI exists
+    if (!process.env.MONGO_URI) {
+      console.error('❌ MONGO_URI not found in environment variables');
       process.exit(1);
     }
 
     console.log('🔄 Connecting to MongoDB...');
     
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+    const conn = await mongoose.connect(process.env.MONGO_URI, {
       // Connection pool settings
       maxPoolSize: 10,
       minPoolSize: 2,
@@ -176,6 +181,25 @@ io.on('connection', (socket) => {
     socket.emit('authenticated', { userId, socketId: socket.id });
   });
 
+  // Handle joining user room
+  socket.on('join_user_room', (userId) => {
+    socket.userId = userId;
+    socket.join(`user_${userId}`);
+    console.log(`👤 User ${userId} joined personal room`);
+  });
+
+  // Handle admin room joining
+  socket.on('join_admin_room', () => {
+    socket.join('admin_room');
+    console.log(`👑 Admin user joined admin room: ${socket.id}`);
+  });
+
+  // Handle admin room leaving
+  socket.on('leave_admin_room', () => {
+    socket.leave('admin_room');
+    console.log(`👋 User left admin room: ${socket.id}`);
+  });
+
   // Handle disconnection
   socket.on('disconnect', () => {
     console.log('👤 User disconnected:', socket.id);
@@ -205,8 +229,10 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', authenticateToken, userRoutes);
 app.use('/api/plans', planRoutes);
 app.use('/api/subscriptions', authenticateToken, subscriptionRoutes);
+app.use('/api/plan-requests', authenticateToken, planRequestRoutes);
 app.use('/api/admin', authenticateToken, adminRoutes);
 app.use('/api/customer', require('./routes/customer'));
+app.use('/api/billing', authenticateToken, require('./routes/billing'));
 // app.use('/api/payments', require('./routes/payments')); // Disabled - using UPI payments via customer routes
 // app.use('/api/analytics', authenticateToken, analyticsRoutes);
 app.use('/api/recommendations', authenticateToken, recommendationRoutes);

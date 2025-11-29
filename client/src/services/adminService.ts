@@ -1,5 +1,5 @@
 import { apiClient, handleApiResponse, handleApiError } from './api';
-import { User, Plan, Subscription, ApiResponse } from '../types';
+import { User, Plan, Subscription, ApiResponse } from '../types/index';
 
 export interface DashboardStats {
   totalUsers: number;
@@ -67,6 +67,33 @@ export const adminService = {
     }
   },
 
+  createUser: async (userData: Partial<User>): Promise<{ user: User; temporaryPassword?: string }> => {
+    try {
+      const response = await apiClient.post<ApiResponse<{ user: User; temporaryPassword?: string }>>('/admin/users', userData);
+      return handleApiResponse<{ user: User; temporaryPassword?: string }>(response);
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  updateUser: async (userId: string, userData: Partial<User>): Promise<User> => {
+    try {
+      const response = await apiClient.put<ApiResponse<User>>(`/admin/users/${userId}`, userData);
+      return handleApiResponse<User>(response);
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  deleteUser: async (userId: string): Promise<void> => {
+    try {
+      const response = await apiClient.delete<ApiResponse<void>>(`/admin/users/${userId}`);
+      handleApiResponse<void>(response);
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
   // Plan management
   getAllPlans: async (): Promise<Plan[]> => {
     try {
@@ -127,9 +154,28 @@ export const adminService = {
       if (params.status && params.status !== 'all') queryParams.append('status', params.status);
       if (params.search) queryParams.append('search', params.search);
       
-      const response = await apiClient.get<ApiResponse<any>>(`/admin/subscriptions?${queryParams}`);
-      return handleApiResponse(response);
+      const url = `/admin/subscriptions?${queryParams}`;
+      console.log('🚀 Making request to:', url);
+      console.log('📋 Request params:', params);
+      
+      const response = await apiClient.get<ApiResponse<any>>(url);
+      console.log('📡 Raw response status:', response.status);
+      console.log('📦 Raw response data:', response.data);
+      
+      // Handle the response properly - the backend returns { success: true, data: [...], pagination: {...} }
+      if (response.data.success) {
+        const result = {
+          success: true,
+          data: response.data.data || [],
+          pagination: response.data.pagination
+        };
+        console.log('✅ Processed response:', result);
+        return result;
+      } else {
+        throw new Error(response.data.message || 'Failed to fetch subscriptions');
+      }
     } catch (error) {
+      console.error('❌ Admin subscriptions API error:', error);
       throw new Error(handleApiError(error));
     }
   },
@@ -184,6 +230,57 @@ export const adminService = {
   getSystemHealth: async (): Promise<any> => {
     try {
       const response = await apiClient.get<ApiResponse<any>>('/admin/health');
+      return handleApiResponse(response);
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  // Plan Request Management
+  getAllPlanRequests: async (filters: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    requestType?: string;
+  }): Promise<any> => {
+    try {
+      const response = await apiClient.get<ApiResponse<any>>('/admin/plan-requests', { params: filters });
+      return handleApiResponse(response);
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  getPlanRequestAnalytics: async (): Promise<any> => {
+    try {
+      const response = await apiClient.get<ApiResponse<any>>('/admin/plan-requests/analytics');
+      return handleApiResponse(response);
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  approvePlanRequest: async (requestId: string, data: { comments?: string; internalNotes?: string }): Promise<any> => {
+    try {
+      const response = await apiClient.post<ApiResponse<any>>(`/admin/plan-requests/${requestId}/approve`, data);
+      return handleApiResponse(response);
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  rejectPlanRequest: async (requestId: string, data: { comments: string; internalNotes?: string }): Promise<any> => {
+    try {
+      const response = await apiClient.post<ApiResponse<any>>(`/admin/plan-requests/${requestId}/reject`, data);
+      return handleApiResponse(response);
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  getPlanRequest: async (requestId: string): Promise<any> => {
+    try {
+      const response = await apiClient.get<ApiResponse<any>>(`/admin/plan-requests/${requestId}`);
       return handleApiResponse(response);
     } catch (error) {
       throw new Error(handleApiError(error));

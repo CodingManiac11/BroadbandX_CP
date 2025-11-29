@@ -56,6 +56,10 @@ const subscriptions = require('./routes/subscriptions');
 const usage = require('./routes/usage');
 const payments = require('./routes/payments');
 const admin = require('./routes/admin');
+const planRequests = require('./routes/planRequests');
+const billing = require('./routes/billing');
+const pdf = require('./routes/pdf');
+const scheduler = require('./routes/scheduler');
 
 // Mount routers
 app.use('/api/auth', auth);
@@ -65,6 +69,10 @@ app.use('/api/subscriptions', subscriptions);
 app.use('/api/usage', usage);
 app.use('/api/payments', payments);
 app.use('/api/admin', admin);
+app.use('/api/plan-requests', planRequests);
+app.use('/api/billing', billing);
+app.use('/api/pdf', pdf);
+app.use('/api/scheduler', scheduler);
 
 app.use(errorHandler);
 

@@ -201,3 +201,442 @@ exports.getBillingOverview = asyncHandler(async (req, res) => {
     }
   });
 });
+
+// @desc    Process payment for plan modification
+// @route   POST /api/billing/process-modification-payment
+// @access  Private
+exports.processModificationPayment = asyncHandler(async (req, res) => {
+  try {
+    const { subscriptionId, paymentMethod, amount } = req.body;
+    const userId = req.user.id;
+
+    // Find the subscription
+    const Subscription = require('../models/Subscription');
+    const subscription = await Subscription.findOne({ 
+      _id: subscriptionId, 
+      user: userId 
+    }).populate('plan');
+
+    if (!subscription) {
+      return res.status(404).json({
+        error: 'Subscription not found'
+      });
+    }
+
+    // Find pending payment in payment history
+    const pendingPayment = subscription.paymentHistory.find(
+      payment => payment.status === 'pending' && payment.amount > 0
+    );
+
+    if (!pendingPayment) {
+      return res.status(400).json({
+        error: 'No pending payment found for this modification'
+      });
+    }
+
+    // Update payment status to completed
+    pendingPayment.status = 'completed';
+    pendingPayment.paymentMethod = paymentMethod;
+    pendingPayment.date = new Date();
+
+    // Add service history entry for payment
+    subscription.serviceHistory.push({
+      type: 'upgraded', // Use existing enum value
+      description: `Payment completed for ${subscription.plan.name}`,
+      performedBy: userId,
+      metadata: {
+        amount: amount,
+        paymentMethod: paymentMethod,
+        transactionId: pendingPayment.transactionId,
+        paymentCompleted: true
+      },
+      date: new Date()
+    });
+
+    await subscription.save();
+
+    res.json({
+      success: true,
+      message: 'Payment processed successfully',
+      transactionId: pendingPayment.transactionId,
+      amount: amount
+    });
+
+  } catch (error) {
+    console.error('Payment processing error:', error);
+    res.status(500).json({
+      error: 'Failed to process payment',
+      details: error.message
+    });
+  }
+});
+
+// @desc    Get outstanding balance for upgrades
+// @route   GET /api/billing/outstanding-balance/:subscriptionId
+// @access  Private
+exports.getOutstandingBalance = asyncHandler(async (req, res) => {
+  try {
+    const { subscriptionId } = req.params;
+    const userId = req.user.id;
+
+    const Subscription = require('../models/Subscription');
+    const subscription = await Subscription.findOne({ 
+      _id: subscriptionId, 
+      user: userId 
+    }).populate('plan');
+
+    if (!subscription) {
+      return res.status(404).json({
+        error: 'Subscription not found'
+      });
+    }
+
+    // Calculate outstanding amounts
+    const pendingUpgrades = subscription.paymentHistory.filter(
+      payment => payment.status === 'pending' && payment.amount > 0
+    );
+
+    const pendingRefunds = subscription.paymentHistory.filter(
+      payment => payment.status === 'refunded' && payment.amount < 0
+    );
+
+    const outstandingAmount = pendingUpgrades.reduce((sum, payment) => sum + payment.amount, 0);
+    const refundCredit = Math.abs(pendingRefunds.reduce((sum, payment) => sum + payment.amount, 0));
+
+    res.json({
+      subscriptionId,
+      planName: subscription.plan.name,
+      outstandingAmount: outstandingAmount.toFixed(2),
+      refundCredit: refundCredit.toFixed(2),
+      netAmount: (outstandingAmount - refundCredit).toFixed(2),
+      pendingPayments: pendingUpgrades.length,
+      pendingRefunds: pendingRefunds.length,
+      hasDuePayment: outstandingAmount > 0,
+      hasRefundCredit: refundCredit > 0
+    });
+
+  } catch (error) {
+    console.error('Outstanding balance error:', error);
+    res.status(500).json({
+      error: 'Failed to get outstanding balance',
+      details: error.message
+    });
+  }
+});
+
+// @desc    Process refund for downgrades or create credit
+// @route   POST /api/billing/process-refund
+// @access  Private
+exports.processRefund = asyncHandler(async (req, res) => {
+  try {
+    const { subscriptionId, refundMethod } = req.body; // refundMethod: 'gateway' or 'credit'
+    const userId = req.user.id;
+
+    const Subscription = require('../models/Subscription');
+    const subscription = await Subscription.findOne({ 
+      _id: subscriptionId, 
+      user: userId 
+    }).populate('plan');
+
+    if (!subscription) {
+      return res.status(404).json({
+        error: 'Subscription not found'
+      });
+    }
+
+    // Find refund entry
+    const refundEntry = subscription.paymentHistory.find(
+      payment => payment.status === 'refunded' && payment.amount < 0
+    );
+
+    if (!refundEntry) {
+      return res.status(400).json({
+        error: 'No refund available'
+      });
+    }
+
+    const refundAmount = Math.abs(refundEntry.amount);
+
+    if (refundMethod === 'credit') {
+      // Keep as credit for next transactions
+      refundEntry.notes = 'Credit balance for future use';
+      refundEntry.paymentMethod = 'credit_balance';
+      
+      subscription.serviceHistory.push({
+        type: 'downgraded',
+        description: `₹${refundAmount} added to credit balance`,
+        performedBy: userId,
+        metadata: {
+          amount: refundAmount,
+          source: 'plan_downgrade',
+          creditAdded: true
+        },
+        date: new Date()
+      });
+
+    } else if (refundMethod === 'gateway') {
+      // Process refund to original payment method
+      refundEntry.notes = 'Refunded to original payment gateway';
+      refundEntry.paymentMethod = 'gateway_refund';
+      
+      subscription.serviceHistory.push({
+        type: 'downgraded',
+        description: `₹${refundAmount} refunded to payment gateway`,
+        performedBy: userId,
+        metadata: {
+          amount: refundAmount,
+          method: 'gateway',
+          transactionId: refundEntry.transactionId,
+          refundProcessed: true
+        },
+        date: new Date()
+      });
+    }
+
+    await subscription.save();
+
+    res.json({
+      success: true,
+      message: `Refund of ₹${refundAmount} ${refundMethod === 'credit' ? 'added to credit balance' : 'processed to payment gateway'}`,
+      amount: refundAmount,
+      method: refundMethod
+    });
+
+  } catch (error) {
+    console.error('Refund processing error:', error);
+    res.status(500).json({
+      error: 'Failed to process refund',
+      details: error.message
+    });
+  }
+});
+
+// @desc    Process upgrade payment
+// @route   POST /api/billing/process-upgrade-payment/:invoiceId
+// @access  Private
+exports.processUpgradePayment = asyncHandler(async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    const { paymentMethod } = req.body;
+    const userId = req.user._id;
+
+    // Find the pending upgrade invoice
+    const invoice = await Billing.findById(invoiceId);
+    
+    if (!invoice) {
+      return res.status(404).json({
+        error: 'Invoice not found',
+        code: 'INVOICE_NOT_FOUND'
+      });
+    }
+
+    if (invoice.user.toString() !== userId.toString()) {
+      return res.status(403).json({
+        error: 'Not authorized to pay this invoice',
+        code: 'UNAUTHORIZED'
+      });
+    }
+
+    if (invoice.status === 'paid') {
+      return res.status(400).json({
+        error: 'Invoice has already been paid',
+        code: 'ALREADY_PAID'
+      });
+    }
+
+    // Update invoice as paid
+    invoice.status = 'paid';
+    invoice.paymentDate = new Date();
+    invoice.transactionId = `txn_${Date.now()}_upgrade`;
+    
+    if (paymentMethod) {
+      invoice.paymentMethod = {
+        type: paymentMethod.type || 'credit_card',
+        last4: paymentMethod.last4 || '****',
+        cardBrand: paymentMethod.cardBrand || 'unknown'
+      };
+    }
+
+    await invoice.save();
+
+    // Update subscription to reflect the completed upgrade
+    const Subscription = require('../models/Subscription');
+    const subscription = await Subscription.findById(invoice.subscription);
+    
+    if (subscription) {
+      // Update plan to Enterprise Plan8
+      const Plan = require('../models/Plan');
+      const upgradePlan = await Plan.findOne({ name: 'Enterprise Plan8' });
+      
+      if (upgradePlan) {
+        subscription.plan = upgradePlan._id;
+        
+        // Add payment completion to service history
+        subscription.serviceHistory.push({
+          type: 'payment_completed',
+          date: new Date(),
+          description: 'Upgrade payment completed - Plan activated',
+          metadata: {
+            invoiceId: invoice._id,
+            amount: invoice.amount,
+            newPlan: 'Enterprise Plan8',
+            newPrice: 86.42,
+            currency: 'INR',
+            paymentStatus: 'completed'
+          }
+        });
+
+        await subscription.save();
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Upgrade payment processed successfully',
+      data: {
+        invoice: {
+          id: invoice._id,
+          amount: invoice.amount,
+          status: invoice.status,
+          paymentDate: invoice.paymentDate,
+          transactionId: invoice.transactionId
+        },
+        subscription: {
+          newPlan: 'Enterprise Plan8',
+          newPrice: 86.42,
+          currency: 'INR'
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Upgrade payment processing error:', error);
+    res.status(500).json({
+      error: 'Failed to process upgrade payment',
+      details: error.message
+    });
+  }
+});
+
+// @desc    Create upgrade billing scenario
+// @route   POST /api/billing/create-upgrade-scenario
+// @access  Private
+exports.createUpgradeScenario = asyncHandler(async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const Subscription = require('../models/Subscription');
+
+    // Get user's subscription
+    const subscription = await Subscription.findOne({ user: userId });
+    if (!subscription) {
+      return res.status(404).json({
+        error: 'No subscription found for user'
+      });
+    }
+
+    // Clear existing billing records for this user
+    await Billing.deleteMany({ user: userId });
+
+    // Create billing record for current plan payment (Enterprise Plan52 - ₹61.25)
+    const currentPlanInvoice = new Billing({
+      user: userId,
+      subscription: subscription._id,
+      invoiceNumber: `INV-${Date.now()}-CURRENT`,
+      amount: 61.25,
+      status: 'paid',
+      dueDate: new Date(),
+      billingPeriod: {
+        start: new Date(2025, 10, 26), // Nov 26, 2025
+        end: new Date(2025, 11, 26)    // Dec 26, 2025
+      },
+      items: [{
+        description: 'Enterprise Plan52 - Monthly Subscription',
+        amount: 61.25,
+        quantity: 1,
+        total: 61.25
+      }],
+      subtotal: 61.25,
+      tax: 0,
+      discount: 0,
+      total: 61.25,
+      paymentMethod: {
+        type: 'credit_card',
+        last4: '4242',
+        cardBrand: 'visa',
+        expiryMonth: 12,
+        expiryYear: 2026
+      },
+      paymentDate: new Date(),
+      transactionId: `txn_${Date.now()}_current`,
+      notes: 'Payment for current plan - Enterprise Plan52'
+    });
+
+    // Create billing record for upgrade (Enterprise Plan8 - Additional ₹25.17)
+    const upgradeInvoice = new Billing({
+      user: userId,
+      subscription: subscription._id,
+      invoiceNumber: `INV-${Date.now() + 1}-UPGRADE`,
+      amount: 25.17,
+      status: 'pending',
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Due in 7 days
+      billingPeriod: {
+        start: new Date(2025, 10, 26), // Nov 26, 2025
+        end: new Date(2025, 11, 26)    // Dec 26, 2025
+      },
+      items: [{
+        description: 'Upgrade to Enterprise Plan8 - Price Difference',
+        amount: 25.17,
+        quantity: 1,
+        total: 25.17
+      }],
+      subtotal: 25.17,
+      tax: 0,
+      discount: 0,
+      total: 25.17,
+      paymentMethod: {
+        type: 'credit_card'
+      },
+      notes: 'Additional payment required for upgrade to Enterprise Plan8',
+      metadata: new Map([
+        ['upgrade_type', 'plan_upgrade'],
+        ['from_plan', 'Enterprise Plan52'],
+        ['to_plan', 'Enterprise Plan8'],
+        ['from_amount', '61.25'],
+        ['to_amount', '86.42'],
+        ['price_difference', '25.17']
+      ])
+    });
+
+    // Save billing records
+    await currentPlanInvoice.save();
+    await upgradeInvoice.save();
+
+    res.json({
+      success: true,
+      message: 'Upgrade billing scenario created successfully',
+      data: {
+        currentPlanInvoice: {
+          id: currentPlanInvoice._id,
+          invoiceNumber: currentPlanInvoice.invoiceNumber,
+          amount: currentPlanInvoice.amount,
+          status: currentPlanInvoice.status,
+          description: 'Enterprise Plan52 - Monthly Subscription'
+        },
+        upgradeInvoice: {
+          id: upgradeInvoice._id,
+          invoiceNumber: upgradeInvoice.invoiceNumber,
+          amount: upgradeInvoice.amount,
+          status: upgradeInvoice.status,
+          description: 'Upgrade to Enterprise Plan8 - Price Difference'
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error creating upgrade scenario:', error);
+    res.status(500).json({
+      error: 'Failed to create upgrade scenario',
+      details: error.message
+    });
+  }
+});

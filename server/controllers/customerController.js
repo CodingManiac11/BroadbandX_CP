@@ -6,7 +6,14 @@ const UsageAnalytics = require('../models/UsageAnalytics');
 // Customer dashboard stats
 exports.getCustomerStats = async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Add no-cache headers to prevent 304 responses
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+    
+    const userId = req.user._id;
 
     // Get active subscriptions count
     const activeSubscriptions = await Subscription.countDocuments({
@@ -81,19 +88,35 @@ exports.getCustomerStats = async (req, res) => {
 // Get customer's subscriptions
 exports.getCustomerSubscriptions = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { status } = req.query;
+    // Add no-cache headers to prevent 304 responses
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+    
+    const userId = req.user._id;
+    
+    // Add debug logging
+    console.log('🔍 Debug info:');
+    console.log('  req.user:', req.user);
+    console.log('  req.user._id:', userId);
+    console.log('  userId type:', typeof userId);
+    console.log('  userId string:', userId.toString());
 
-    const filter = { user: userId };
-    if (status) filter.status = status;
+    const subscriptions = await Subscription.find({ 
+      user: userId
+      // Removed status filter to see all subscriptions
+    }).populate('plan').sort({ createdAt: -1 });
+    
+    console.log('Subscriptions with plan data:', JSON.stringify(subscriptions, null, 2));
+    console.log('Plan population check:', subscriptions.map(s => ({ id: s._id, planName: s.plan?.name || 'NO PLAN' })));
 
-    const subscriptions = await Subscription.find(filter)
-      .populate('plan')
-      .sort({ createdAt: -1 });
-
-    res.json({
+    res.status(200).json({
       success: true,
-      data: subscriptions
+      data: {
+        subscriptions: subscriptions
+      }
     });
   } catch (error) {
     console.error('Error fetching customer subscriptions:', error);
@@ -138,28 +161,17 @@ exports.getAvailablePlans = async (req, res) => {
   }
 };
 
-// Subscribe to a plan
+// Subscribe to a plan (creates active subscription directly)
 exports.subscribeToPlan = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { planId, billingCycle = 'monthly' } = req.body;
-
-    console.log('🔍 Subscription request received:');
-    console.log('  - User ID:', userId);
-    console.log('  - Plan ID:', planId);
-    console.log('  - Billing Cycle:', billingCycle);
+    const userId = req.user._id;
+    const { planId, billingCycle = 'monthly', installationAddress, startDate, discountCode } = req.body;
 
     // Check if plan exists and is active
     const plan = await Plan.findById(planId);
-    console.log('📋 Plan lookup result:');
-    console.log('  - Plan found:', !!plan);
-    if (plan) {
-      console.log('  - Plan name:', plan.name);
-      console.log('  - Plan status:', plan.status);
-      console.log('  - Plan ID from DB:', plan._id);
-    }
 
     if (!plan || plan.status !== 'active') {
+      console.log('❌ Plan validation failed - returning 404');
       console.log('❌ Plan validation failed - returning 404');
       return res.status(404).json({
         success: false,
@@ -181,48 +193,80 @@ exports.subscribeToPlan = async (req, res) => {
       });
     }
 
+    // Check if user already has any active subscription
+    const anyActiveSubscription = await Subscription.findOne({
+      user: userId,
+      status: 'active'
+    });
+
+    if (anyActiveSubscription) {
+      return res.status(400).json({
+        success: false,
+        message: 'You already have an active subscription. Please cancel your current subscription before subscribing to a new plan.'
+      });
+    }
+
     // Calculate pricing
     const basePrice = billingCycle === 'yearly' ? plan.pricing.yearly : plan.pricing.monthly;
-    const taxes = Math.round(basePrice * 0.18); // 18% GST
-    const setupFee = plan.pricing.setupFee || 0;
-    const totalAmount = basePrice + taxes + setupFee;
+    let finalPrice = basePrice;
+    let discountApplied = 0;
 
-    // Create subscription
-    const startDate = new Date();
-    const endDate = new Date();
+    // Apply discount if provided
+    if (discountCode) {
+      // For now, apply a sample 10% discount
+      discountApplied = basePrice * 0.1;
+      finalPrice = basePrice - discountApplied;
+    }
+
+    // Calculate dates
+    const subscriptionStartDate = startDate ? new Date(startDate) : new Date();
+    const endDate = new Date(subscriptionStartDate);
     if (billingCycle === 'yearly') {
       endDate.setFullYear(endDate.getFullYear() + 1);
     } else {
       endDate.setMonth(endDate.getMonth() + 1);
     }
 
+    // Calculate tax (18% GST)
+    const taxAmount = finalPrice * 0.18;
+    const totalAmount = finalPrice + taxAmount;
+
+    // Create subscription directly
     const subscription = new Subscription({
       user: userId,
       plan: planId,
       status: 'active',
-      startDate,
+      startDate: subscriptionStartDate,
       endDate,
       billingCycle,
       pricing: {
         basePrice,
-        discountApplied: 0,
-        finalPrice: totalAmount,
-        taxes,
-        setupFee,
-        totalAmount
-      }
+        discountApplied,
+        taxAmount,
+        finalPrice: totalAmount
+      },
+      installationAddress: installationAddress || req.user.address,
+      discountCode
     });
 
     await subscription.save();
-    await subscription.populate('plan');
+    await subscription.populate([
+      { path: 'user', select: 'firstName lastName email' },
+      { path: 'plan', select: 'name pricing category features' }
+    ]);
+
+    console.log('✅ Subscription created:', subscription._id);
 
     res.status(201).json({
       success: true,
-      message: 'Successfully subscribed to plan',
-      data: subscription
+      message: 'Subscription activated successfully! Welcome to your new broadband plan.',
+      data: {
+        subscription,
+        message: 'Your subscription is now active and ready to use.'
+      }
     });
   } catch (error) {
-    console.error('Error subscribing to plan:', error);
+    console.error('Error creating subscription:', error);
     res.status(500).json({
       success: false,
       message: 'Error creating subscription',
@@ -232,9 +276,9 @@ exports.subscribeToPlan = async (req, res) => {
 };
 
 // Get customer's usage analytics
-exports.getUsageAnalytics = async (req, res) => {
+exports.getUsageData = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const { period = 'month', startDate, endDate } = req.query;
 
     let dateFilter = {};
@@ -305,7 +349,7 @@ exports.getUsageAnalytics = async (req, res) => {
 // Get billing history
 exports.getBillingHistory = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const { status, limit = 20, page = 1 } = req.query;
 
     // Get user's subscriptions
@@ -322,6 +366,8 @@ exports.getBillingHistory = async (req, res) => {
     .sort({ createdAt: -1 })
     .limit(parseInt(limit))
     .skip((parseInt(page) - 1) * parseInt(limit));
+    
+    console.log('Billing history subscriptions:', JSON.stringify(subscriptions, null, 2));
 
     // Generate billing history from subscriptions
     const billingHistory = subscriptions.map(subscription => {
@@ -349,6 +395,7 @@ exports.getBillingHistory = async (req, res) => {
 
     res.json({
       success: true,
+      bills: billingHistory,
       data: billingHistory,
       pagination: {
         page: parseInt(page),
@@ -369,7 +416,7 @@ exports.getBillingHistory = async (req, res) => {
 // Update customer profile
 exports.updateProfile = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const { firstName, lastName, phone, address } = req.body;
 
     const updatedUser = await User.findByIdAndUpdate(
@@ -399,16 +446,17 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
-// Cancel subscription
+// Cancel subscription (direct cancellation)
 exports.cancelSubscription = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const { subscriptionId } = req.params;
+    const { reason = 'Customer requested cancellation' } = req.body;
 
     const subscription = await Subscription.findOne({
       _id: subscriptionId,
       user: userId
-    });
+    }).populate('plan');
 
     if (!subscription) {
       return res.status(404).json({
@@ -424,22 +472,121 @@ exports.cancelSubscription = async (req, res) => {
       });
     }
 
-    subscription.status = 'cancelled';
-    subscription.endDate = new Date(); // End immediately
-    subscription.updatedAt = new Date();
+    // Actually delete the subscription (permanent removal)
+    const deletedSubscription = await Subscription.findByIdAndDelete(subscriptionId);
 
-    await subscription.save();
-
-    res.json({
+    res.status(200).json({
       success: true,
-      message: 'Subscription cancelled successfully',
-      data: subscription
+      message: 'Subscription cancelled and removed successfully',
+      data: {
+        deletedSubscription: {
+          _id: deletedSubscription._id,
+          plan: subscription.plan?.name || 'Unknown',
+          status: 'deleted'
+        }
+      }
     });
   } catch (error) {
     console.error('Error cancelling subscription:', error);
     res.status(500).json({
       success: false,
       message: 'Error cancelling subscription',
+      error: error.message
+    });
+  }
+};
+
+// Modify subscription (direct modification)
+exports.modifySubscription = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { subscriptionId } = req.params;
+    const { 
+      newPlanId, 
+      billingCycle, 
+      reason = 'Customer requested plan change'
+    } = req.body;
+
+    const subscription = await Subscription.findOne({
+      _id: subscriptionId,
+      user: userId
+    }).populate('plan');
+
+    if (!subscription) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subscription not found'
+      });
+    }
+
+    if (subscription.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: 'Can only modify active subscriptions'
+      });
+    }
+
+    const newPlan = await Plan.findById(newPlanId);
+    if (!newPlan || newPlan.status !== 'active') {
+      return res.status(404).json({
+        success: false,
+        message: 'Requested plan not found or not available'
+      });
+    }
+
+    // Calculate new pricing
+    const newPrice = billingCycle === 'yearly' ? newPlan.pricing.yearly : newPlan.pricing.monthly;
+    const taxAmount = newPrice * 0.18;
+    const totalAmount = newPrice + taxAmount;
+
+    // Calculate new end date based on billing cycle
+    const currentDate = new Date();
+    const newEndDate = new Date(currentDate);
+    if (billingCycle === 'yearly') {
+      newEndDate.setFullYear(newEndDate.getFullYear() + 1);
+    } else {
+      newEndDate.setMonth(newEndDate.getMonth() + 1);
+    }
+
+    // Update subscription
+    subscription.plan = newPlanId;
+    if (billingCycle) {
+      subscription.billingCycle = billingCycle;
+      subscription.endDate = newEndDate; // Update end date
+    }
+    subscription.pricing.basePrice = newPrice;
+    subscription.pricing.taxAmount = taxAmount;
+    subscription.pricing.finalPrice = totalAmount;
+    subscription.modificationReason = reason;
+    subscription.lastModified = new Date();
+    
+    // Update next billing date
+    const nextBillingDate = new Date(currentDate);
+    if (billingCycle === 'yearly') {
+      nextBillingDate.setFullYear(nextBillingDate.getFullYear() + 1);
+    } else {
+      nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
+    }
+    subscription.nextBillingDate = nextBillingDate;
+
+    await subscription.save();
+    await subscription.populate([
+      { path: 'user', select: 'firstName lastName email' },
+      { path: 'plan', select: 'name pricing category' }
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: 'Subscription modified successfully',
+      data: {
+        subscription
+      }
+    });
+  } catch (error) {
+    console.error('Error modifying subscription:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error modifying subscription',
       error: error.message
     });
   }

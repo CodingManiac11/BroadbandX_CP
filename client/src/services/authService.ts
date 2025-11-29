@@ -5,7 +5,7 @@ import {
   RegisterData, 
   AuthResponse, 
   ApiResponse 
-} from '../types';
+} from '../types/index';
 
 export const authService = {
   // User registration
@@ -18,8 +18,8 @@ export const authService = {
       return {
         user: responseData.user,
         tokens: {
-          accessToken: responseData.token,
-          refreshToken: responseData.refreshToken
+          access_token: responseData.token,
+          refresh_token: responseData.refreshToken
         }
       };
     } catch (error) {
@@ -37,8 +37,8 @@ export const authService = {
       return {
         user: data.user,
         tokens: {
-          accessToken: data.token,
-          refreshToken: data.refreshToken
+          access_token: data.token,
+          refresh_token: data.refreshToken
         }
       };
     } catch (error) {
@@ -57,13 +57,13 @@ export const authService = {
   },
 
   // Refresh access token
-  refreshToken: async (refreshToken: string): Promise<{ accessToken: string }> => {
+  refreshToken: async (refreshToken: string): Promise<{ access_token: string }> => {
     try {
       const response = await apiClient.post<ApiResponse<{ accessToken: string }>>('/auth/refresh', {
         refreshToken: refreshToken,
       });
       const result = handleApiResponse<{ access_token: string }>(response);
-      return { accessToken: result.access_token };
+      return { access_token: result.access_token };
     } catch (error) {
       throw new Error(handleApiError(error));
     }
@@ -72,8 +72,9 @@ export const authService = {
   // Get current user profile
   getCurrentUser: async (): Promise<User> => {
     try {
-      const response = await apiClient.get<ApiResponse<User>>('/users/profile');
-      return handleApiResponse<User>(response);
+      const response = await apiClient.get<ApiResponse<{user: User}>>('/users/profile');
+      const responseData = handleApiResponse<{user: User}>(response);
+      return responseData.user;
     } catch (error) {
       throw new Error(handleApiError(error));
     }
@@ -82,8 +83,9 @@ export const authService = {
   // Update user profile
   updateProfile: async (data: Partial<User>): Promise<User> => {
     try {
-      const response = await apiClient.put<ApiResponse<User>>('/users/profile', data);
-      return handleApiResponse<User>(response);
+      const response = await apiClient.put<ApiResponse<{user: User}>>('/users/profile', data);
+      const responseData = handleApiResponse<{user: User}>(response);
+      return responseData.user;
     } catch (error) {
       throw new Error(handleApiError(error));
     }

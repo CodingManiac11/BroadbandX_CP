@@ -84,6 +84,84 @@ class RealTimeEvents {
     });
   }
 
+  // Plan Request Events
+  planRequestCreated(userId, planRequest) {
+    this.emitToUser(userId, 'plan_request_created', {
+      type: 'plan_request_created',
+      planRequest,
+      message: `Plan request submitted: ${planRequest.requestType}`
+    });
+    
+    // Also notify all admin users
+    this.io.to('admin_room').emit('admin_plan_request_created', {
+      type: 'admin_plan_request_created',
+      planRequest,
+      message: `New plan request from ${planRequest.customer?.firstName || 'Customer'}`,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  planRequestStatusChanged(userId, planRequest, oldStatus, newStatus) {
+    this.emitToUser(userId, 'plan_request_status_changed', {
+      type: 'plan_request_status_changed',
+      planRequest,
+      oldStatus,
+      newStatus,
+      message: `Plan request ${newStatus}: ${planRequest.requestType}`
+    });
+  }
+
+  planRequestCancelled(userId, planRequest) {
+    this.emitToUser(userId, 'plan_request_cancelled', {
+      type: 'plan_request_cancelled',
+      planRequest,
+      message: `Plan request cancelled: ${planRequest.requestType}`
+    });
+    
+    // Notify admins
+    this.io.to('admin_room').emit('admin_plan_request_cancelled', {
+      type: 'admin_plan_request_cancelled',
+      planRequest,
+      message: `Plan request cancelled by ${planRequest.customer?.firstName || 'Customer'}`,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Admin Plan Request Events
+  planRequestApproved(userId, planRequest, adminId) {
+    this.emitToUser(userId, 'plan_request_approved', {
+      type: 'plan_request_approved',
+      planRequest,
+      message: `Plan request approved: ${planRequest.requestType}`
+    });
+    
+    // Notify all admins
+    this.io.to('admin_room').emit('admin_plan_request_approved', {
+      type: 'admin_plan_request_approved',
+      planRequest,
+      approvedBy: adminId,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  planRequestRejected(userId, planRequest, adminId, reason) {
+    this.emitToUser(userId, 'plan_request_rejected', {
+      type: 'plan_request_rejected',
+      planRequest,
+      reason,
+      message: `Plan request rejected: ${planRequest.requestType}`
+    });
+    
+    // Notify all admins
+    this.io.to('admin_room').emit('admin_plan_request_rejected', {
+      type: 'admin_plan_request_rejected',
+      planRequest,
+      rejectedBy: adminId,
+      reason,
+      timestamp: new Date().toISOString()
+    });
+  }
+
   // Broadcast to all users (admin events)
   broadcastToAll(event, data) {
     this.io.emit(event, {

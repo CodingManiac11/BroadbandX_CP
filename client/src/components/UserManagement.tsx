@@ -42,7 +42,8 @@ import { User } from '../types/index';
 
 interface UserManagementProps {
   users: User[];
-  onCreateUser: (userData: Partial<User>) => Promise<void>;
+  totalUsers?: number; // Add total users count prop
+  onCreateUser: (userData: Partial<User>) => Promise<{ user: User; temporaryPassword?: string }>;
   onUpdateUser: (userId: string, userData: Partial<User>) => Promise<void>;
   onDeleteUser: (userId: string) => Promise<void>;
   onToggleUserStatus: (userId: string, status: 'active' | 'inactive' | 'suspended') => Promise<void>;
@@ -54,6 +55,7 @@ interface UserFormData {
   lastName: string;
   email: string;
   phone: string;
+  password?: string; // Optional password field
   role: 'customer' | 'admin';
   status: 'active' | 'inactive' | 'suspended';
   address?: {
@@ -67,6 +69,7 @@ interface UserFormData {
 
 const UserManagement: React.FC<UserManagementProps> = ({
   users,
+  totalUsers,
   onCreateUser,
   onUpdateUser,
   onDeleteUser,
@@ -91,6 +94,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
     lastName: '',
     email: '',
     phone: '',
+    password: '', // Add password field
     role: 'customer',
     status: 'active',
     address: {
@@ -114,12 +118,12 @@ const UserManagement: React.FC<UserManagementProps> = ({
   });
 
   // Filter and search users
-  const filteredUsers = users.filter(user => {
+  const filteredUsers = (users || []).filter(user => {
     const matchesSearch = 
-      user.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.phone?.includes(searchTerm);
+      (user.firstName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (user.lastName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (user.phone || '').includes(searchTerm);
     
     const matchesStatus = filterStatus === 'all' || user.status === filterStatus;
     const matchesRole = filterRole === 'all' || user.role === filterRole;
@@ -191,10 +195,15 @@ const UserManagement: React.FC<UserManagementProps> = ({
 
   const handleSubmitCreate = async () => {
     try {
-      await onCreateUser(formData);
+      const response = await onCreateUser(formData);
       setOpenCreateDialog(false);
       resetFormData();
-      showNotification('User created successfully', 'success');
+      
+      if (response.temporaryPassword) {
+        showNotification(`User created successfully! Temporary password: ${response.temporaryPassword}`, 'success');
+      } else {
+        showNotification('User created successfully', 'success');
+      }
     } catch (error) {
       showNotification('Failed to create user', 'error');
     }
@@ -292,7 +301,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
               Total Users
             </Typography>
             <Typography variant="h4">
-              {users.length}
+              {totalUsers || (users || []).length}
             </Typography>
           </CardContent>
         </Card>
@@ -302,7 +311,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
               Active Users
             </Typography>
             <Typography variant="h4" color="success.main">
-              {users.filter(u => u.status === 'active').length}
+              {(users || []).filter(u => u.status === 'active').length}
             </Typography>
           </CardContent>
         </Card>
@@ -312,7 +321,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
               Administrators
             </Typography>
             <Typography variant="h4" color="secondary.main">
-              {users.filter(u => u.role === 'admin').length}
+              {(users || []).filter(u => u.role === 'admin').length}
             </Typography>
           </CardContent>
         </Card>
@@ -322,7 +331,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
               Suspended
             </Typography>
             <Typography variant="h4" color="error.main">
-              {users.filter(u => u.status === 'suspended').length}
+              {(users || []).filter(u => u.status === 'suspended').length}
             </Typography>
           </CardContent>
         </Card>
@@ -404,7 +413,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
                       <Typography variant="subtitle2">
                         {user.firstName && user.lastName 
                           ? `${user.firstName} ${user.lastName}`
-                          : user.email.split('@')[0]
+                          : user.email?.split('@')[0] || 'Unknown User'
                         }
                       </Typography>
                       {user.emailVerified && (
@@ -418,18 +427,18 @@ const UserManagement: React.FC<UserManagementProps> = ({
                       )}
                     </Box>
                   </TableCell>
-                  <TableCell>{user.email}</TableCell>
+                  <TableCell>{user.email || 'No email'}</TableCell>
                   <TableCell>{user.phone || 'N/A'}</TableCell>
                   <TableCell>
                     <Chip 
-                      label={user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                      label={(user.role || 'unknown').charAt(0).toUpperCase() + (user.role || 'unknown').slice(1)}
                       color={getRoleColor(user.role) as any}
                       size="small"
                     />
                   </TableCell>
                   <TableCell>
                     <Chip 
-                      label={user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+                      label={(user.status || 'unknown').charAt(0).toUpperCase() + (user.status || 'unknown').slice(1)}
                       color={getStatusColor(user.status) as any}
                       size="small"
                     />
@@ -520,6 +529,14 @@ const UserManagement: React.FC<UserManagementProps> = ({
               required
               value={formData.email}
               onChange={(e) => setFormData({...formData, email: e.target.value})}
+            />
+            <TextField
+              fullWidth
+              label="Password (Optional)"
+              type="password"
+              value={formData.password || ''}
+              onChange={(e) => setFormData({...formData, password: e.target.value})}
+              helperText="Leave empty to generate a secure password automatically"
             />
             <TextField
               fullWidth
@@ -724,7 +741,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
               <Box>
                 <Typography variant="subtitle2" color="text.secondary">Role</Typography>
                 <Chip 
-                  label={selectedUser.role.charAt(0).toUpperCase() + selectedUser.role.slice(1)}
+                  label={(selectedUser.role || 'unknown').charAt(0).toUpperCase() + (selectedUser.role || 'unknown').slice(1)}
                   color={getRoleColor(selectedUser.role) as any}
                   size="small"
                 />
@@ -732,7 +749,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
               <Box>
                 <Typography variant="subtitle2" color="text.secondary">Status</Typography>
                 <Chip 
-                  label={selectedUser.status.charAt(0).toUpperCase() + selectedUser.status.slice(1)}
+                  label={(selectedUser.status || 'unknown').charAt(0).toUpperCase() + (selectedUser.status || 'unknown').slice(1)}
                   color={getStatusColor(selectedUser.status) as any}
                   size="small"
                 />

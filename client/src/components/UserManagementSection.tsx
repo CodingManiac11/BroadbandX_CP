@@ -13,7 +13,7 @@ import {
   Alert,
   Typography
 } from '@mui/material';
-import { User } from '../types';
+import { User } from '../types/index';
 
 const UserManagementSection: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);

@@ -16,9 +16,9 @@ const router = express.Router();
 
 // Public routes
 router.post('/register', register);
-router.post('/login', userRateLimit(5, 15 * 60 * 1000), login); // 5 attempts per 15 minutes
+router.post('/login', userRateLimit(50, 15 * 60 * 1000), login); // Increased for development: 50 attempts per 15 minutes
 router.post('/refresh-token', refreshToken);
-router.post('/forgot-password', userRateLimit(3, 60 * 60 * 1000), forgotPassword); // 3 attempts per hour
+router.post('/forgot-password', userRateLimit(10, 60 * 60 * 1000), forgotPassword); // Increased for development: 10 attempts per hour
 router.post('/reset-password/:token', resetPassword);
 router.get('/verify-email/:token', verifyEmail);
 
