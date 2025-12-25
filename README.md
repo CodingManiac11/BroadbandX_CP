@@ -1,29 +1,54 @@
-# 🌐 BroadbandX - An AI-Ready Dynamic Broadband Subscription Management Platform
+# 🌐 BroadbandX - AI-Ready Dynamic Broadband Subscription Management Platform
 
-![BroadbandX](https://img.shields.io/badge/BroadbandX-v2.1-blue.svg)
+![BroadbandX](https://img.shields.io/badge/BroadbandX-v2.5-blue.svg)
 ![MERN](https://img.shields.io/badge/MERN-Stack-green.svg)
 ![WebSocket](https://img.shields.io/badge/Real--Time-WebSocket-red.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-100%25-blue.svg)
 ![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-green.svg)
 
-A comprehensive **AI-powered broadband subscription management system** with **real-time communication** built using the **MERN stack**. Features advanced user management, intelligent analytics, secure payment processing, real-time updates via WebSocket, and machine learning-ready architecture with foundation for AI integration.
+A comprehensive **broadband subscription management system** with **real-time communication** and **support ticket system** built using the **MERN stack**. Features advanced user management, secure payment processing, real-time updates via WebSocket, and integrated customer support functionality.
 
 ## 📊 **Current Implementation Status**
 - ✅ **User Management System** - Fully Operational
 - ✅ **Authentication & Security** - Production Ready
-- ✅ **Real-Time Communication** - Complete Implementation 🆕
-- ✅ **Plan Management** - Core Features Implemented
-- ✅ **Subscription Management** - Dynamic Operations Ready 🔄
-- ✅ **Payment Processing** - Stripe Integration Active
-- ✅ **Admin Dashboard** - Management Interface Ready
-- ✅ **Customer Dashboard** - User Interface Complete 🔄
-- 🔄 **Analytics Dashboard** - Basic Reporting Implemented
-- 🔄 **Excel Data Integration** - Import/Export Capabilities
-- 📋 **AI/ML Features** - Foundation Ready for Integration
+- ✅ **Real-Time Communication** - Complete Implementation
+- ✅ **Plan Management** - One-Time Purchase Model 
+- ✅ **Subscription Management** - Simplified Operations Ready
+- ✅ **Billing & Invoicing** - 1-Month Billing Cycles
+- ✅ **Payment Processing** - Integration Active
+- ✅ **Admin Dashboard** - Complete Management Interface
+- ✅ **Customer Dashboard** - Full User Interface
+- ✅ **Support Ticket System** - Customer Support Complete 🆕
+- ✅ **Analytics Dashboard** - Basic Reporting Implemented
+- ✅ **Excel Data Integration** - Import/Export Capabilities
 
 ## 🎯 **Latest Updates & Achievements**
 
-### 🚀 **Real-Time Communication System** (100% Complete) 🆕
+### 🎫 **Support Ticket System** (100% Complete) 🆕
+- ✅ **Customer Support Portal**: Create and track support tickets
+- ✅ **Admin Support Management**: View and respond to customer tickets
+- ✅ **Real-Time Updates**: Instant ticket status synchronization
+- ✅ **Feedback Integration**: Support tickets stored as feedback entries
+- ✅ **Admin Response System**: Reply to customer inquiries with auto-updates
+- ✅ **Ticket Status Tracking**: Open, In-Progress, Resolved, Closed states
+- ✅ **Email Notifications**: Optional email alerts (with graceful fallback)
+
+### 💰 **Simplified Billing System** (100% Complete) 🆕
+- ✅ **One-Time Purchase Model**: Removed plan modification features
+- ✅ **1-Month Billing Cycles**: All plans standardized to monthly billing
+- ✅ **Accurate Pricing Display**: Invoice amounts match Plan document pricing
+- ✅ **PDF Invoice Generation**: Actual user data in invoice PDFs
+- ✅ **Subscription-Plan Sync**: Real-time pricing corrections from Plan model
+- ✅ **Removed Plan History**: Streamlined to single active subscription
+
+### 🔐 **Enhanced Authentication** (100% Complete) 🆕
+- ✅ **Token Management**: Proper access_token and refresh_token handling
+- ✅ **Middleware Updates**: Fixed authenticateToken (was protect)
+- ✅ **Authorization System**: Role-based access with authorize middleware
+- ✅ **Debug Logging**: Comprehensive authentication tracking
+- ✅ **Token Validation**: Detailed error messages for troubleshooting
+
+### 📡 **Real-Time Communication System** (100% Complete)
 - ✅ **Socket.io Integration**: Full WebSocket server with authentication
 - ✅ **User-Specific Rooms**: Personal real-time channels for each user
 - ✅ **Live Subscription Updates**: Instant notifications for create/cancel/modify
@@ -32,122 +57,146 @@ A comprehensive **AI-powered broadband subscription management system** with **r
 - ✅ **Multi-Tab Sync**: Changes sync instantly across all open browser tabs
 - ✅ **Auto-Reconnection**: Robust connection recovery with retry logic
 
-### 🔧 **Enhanced Subscription Management** (95% Complete) 🔄
-- ✅ **Real-Time Cancellation**: Instant subscription status updates
-- ✅ **Dynamic Stats Calculation**: Live subscription count updates
-- ✅ **Improved Error Handling**: Better authentication feedback
-- ✅ **Fallback Mechanisms**: Works offline with local state management
-- ✅ **Debug Logging**: Comprehensive tracking for troubleshooting
-
-### 🛡️ **MongoDB Atlas Connectivity Improvements** (100% Complete) 🔄
+### 🛡️ **MongoDB Atlas Integration** (100% Complete)
 - ✅ **Enhanced Connection Pooling**: Optimized with retry logic and timeouts
 - ✅ **Network Diagnostics**: DNS resolution and TCP connectivity validation
 - ✅ **Connection String Optimization**: Improved reliability parameters
 - ✅ **Error Handling**: Graceful degradation for database outages
-- ✅ **IP Whitelist Management**: Proper network access configuration
+- ✅ **Enforced Atlas-Only**: No local database fallback
 
-## ⭐ **Current Features (Core Implementation)**
+## ⭐ **Core Features**
 
-### 🔐 **Authentication & Security** (98% Complete)
-- ✅ JWT-based authentication with bcrypt password hashing (12 rounds)
-- ✅ Role-based access control (Customer/Admin)  
-- ✅ Rate limiting (express-rate-limit) and CORS protection
-- ✅ Input validation with Joi schemas
+### 🔐 **Authentication & Security** (100% Complete)
+- ✅ JWT-based authentication with access and refresh tokens
+- ✅ bcrypt password hashing (12 rounds)
+- ✅ Role-based access control (Customer/Admin)
+- ✅ Rate limiting and CORS protection
+- ✅ Input validation with schemas
 - ✅ Secure password reset and session management
-- ✅ WebSocket authentication integration 🆕
-- ✅ Stripe payment security integration
+- ✅ WebSocket authentication integration
+- ✅ Token expiration and renewal handling
 
-### 📡 **Real-Time Communication** (100% Complete) 🆕
-- ✅ **WebSocket Server**: Socket.io with CORS and authentication
-- ✅ **Real-Time Events**: Subscription create/cancel/modify notifications
-- ✅ **User Rooms**: Personal channels for user-specific updates
-- ✅ **Auto-Authentication**: Seamless WebSocket auth on login/logout
-- ✅ **Connection Management**: Auto-reconnect with status monitoring
-- ✅ **Toast Notifications**: Instant visual feedback for all events
-- ✅ **Multi-Device Sync**: Real-time updates across all user sessions
+### 🎫 **Support Ticket System** (100% Complete) 🆕
+- ✅ **Customer Portal**:
+  - Create support tickets with title and description
+  - View all submitted tickets with status
+  - See admin responses in real-time
+  - Track ticket lifecycle (Open → Resolved)
+  
+- ✅ **Admin Management**:
+  - View all customer support tickets
+  - Filter by type, status, sentiment, rating
+  - Search across ticket content
+  - Respond to tickets with admin comments
+  - Update ticket status
+  - Pagination for large ticket volumes
 
-### 👥 **Advanced User Management** (95% Complete)
-- ✅ Comprehensive user profiles with MongoDB schemas
-- ✅ Admin user management dashboard
-- ✅ Customer registration and profile management
-- ✅ Excel data import capabilities (XLSX v0.18.5)
-- ✅ Real-time user status tracking via WebSocket 🆕
+- ✅ **Backend Integration**:
+  - Feedback model for ticket storage
+  - User and subscription linking
+  - Sentiment analysis (positive/neutral/negative)
+  - Email notifications (with error handling)
+  - RESTful API endpoints
 
-### 📋 **Subscription & Payment System** (90% Complete) 🔄
-- ✅ Multi-tier plan structure (Basic, Standard, Premium)
-- ✅ Real-time subscription lifecycle management 🆕
-- ✅ Instant subscription cancellation with live updates 🆕
-- ✅ Dynamic subscription statistics calculation 🆕
-- ✅ Enhanced authentication checks for API calls 🆕
-- ✅ Stripe payment processing integration (v18.5.0)
-- ✅ Billing history and invoice tracking
-- 🔄 Automated recurring billing workflows
+### 💰 **Billing & Invoicing** (100% Complete) 🆕
+- ✅ **One-Time Purchase Model**: Simplified subscription flow
+- ✅ **1-Month Billing Cycles**: Standardized monthly billing periods
+- ✅ **Accurate Pricing**: 
+  - Invoice amounts match Plan document pricing
+  - Admin panel displays correct subscription costs
+  - Billing dashboard shows actual plan prices
+  
+- ✅ **Invoice Management**:
+  - PDF generation with actual customer data
+  - Invoice history tracking
+  - Correct due dates (1 month from period end)
+  - Removed duplicate plan displays
+  
+- ✅ **Price Synchronization**:
+  - Automatic correction from Plan model
+  - Subscription end dates calculated correctly
+  - Admin view shows source-of-truth pricing
 
-### 📊 **Enhanced Customer Dashboard** (95% Complete) 🔄
-- ✅ Real-time connection status indicator 🆕
-- ✅ Live notification count badges 🆕
-- ✅ Instant subscription updates without page refresh 🆕
-- ✅ Dynamic stats refresh on subscription changes 🆕
-- ✅ Material-UI v7.3.2 responsive design
-- ✅ Interactive subscription management
-- ✅ Usage tracking and billing history
-- ✅ Real-time toast notifications 🆕
+### 📋 **Subscription Management** (100% Complete)
+- ✅ Multi-tier plan structure (Enterprise plans)
+- ✅ Real-time subscription lifecycle management
+- ✅ Instant subscription cancellation with live updates
+- ✅ Dynamic subscription statistics calculation
+- ✅ **Simplified Model**: One active subscription per user
+- ✅ **No Plan Modifications**: Removed upgrade/downgrade features
+- ✅ **No Plan History**: Streamlined data model
+- ✅ Usage tracking and analytics
 
-### 📊 **Analytics Dashboard** (80% Complete)
-- ✅ Admin analytics dashboard with Material-UI v7.3.2
-- ✅ Revenue tracking and user metrics
-- ✅ Interactive charts with Recharts v3.2.0 and Chart.js
-- ✅ User management interfaces
-- ✅ Real-time KPI monitoring with WebSocket integration 🆕
-- 🔄 Advanced usage pattern visualization
+### 📊 **Admin Dashboard** (100% Complete)
+- ✅ **Dashboard Overview**:
+  - Real-time KPIs and statistics
+  - User management interface
+  - Subscription monitoring
+  - Revenue tracking
+  
+- ✅ **Support Section** 🆕:
+  - View all customer tickets
+  - Filter and search functionality
+  - Respond to customer inquiries
+  - Update ticket status
+  - Pagination and sorting
+  
+- ✅ **User Management**:
+  - Create/edit/delete users
+  - View user subscriptions
+  - Access control management
+  
+- ✅ **Subscription Management**:
+  - View all subscriptions
+  - Accurate pricing display
+  - Status tracking
+  - Usage analytics
 
-### 🏗️ **Scalable Architecture** (95% Complete)
-- ✅ RESTful API design with Express.js
-- ✅ MongoDB Atlas integration with Mongoose ODM
-- ✅ React 19.1.1 + TypeScript frontend
-- ✅ Material-UI v7.3.2 design system
-- ✅ Modular component architecture
-- ✅ Production-ready folder structure
-
-## 🔮 **Planned Features (Phase 2 - ML Integration)**
-
-### 🤖 **Dynamic Pricing Engine** (Foundation Ready)
-- 📋 Real-time price optimization with XGBoost & LSTM
-- 📋 Demand forecasting and market analysis
-- 📋 Personalized pricing algorithms
-- 📋 A/B testing framework for pricing strategies
-
-### 📈 **Advanced Churn Prediction** (Data Models Ready)
-- 📋 Random Forest & XGBoost classification models
-- 📋 Early churn detection with behavioral analysis
-- 📋 Customer lifetime value prediction
-- 📋 Automated retention campaign triggers
-
-### 🎯 **Intelligent Recommendations** (Schema Designed)
-- 📋 Plan upgrade/downgrade suggestions
-- 📋 Usage-based service recommendations
-- 📋 Matrix factorization and collaborative filtering
-- 📋 Personalized feature offerings
+### 👥 **Customer Dashboard** (100% Complete)
+- ✅ **Dashboard Features**:
+  - Real-time connection status indicator
+  - Live notification count badges
+  - Instant subscription updates
+  - Dynamic stats refresh
+  - Material-UI responsive design
+  
+- ✅ **Support Center** 🆕:
+  - Create support tickets
+  - View ticket history
+  - See admin responses
+  - FAQ section
+  - Contact information
+  
+- ✅ **Subscription Management**:
+  - View active plan details
+  - Billing history
+  - Invoice access (with PDF download)
+  - Usage tracking
+  
+- ✅ **Billing Section**:
+  - Current plan pricing
+  - Invoice generation
+  - Payment history
+  - Correct pricing display
 ## 🛠️ **Current Tech Stack (Phase 1)**
 
 ### **Frontend (React Client)**
 - **React 19.1.1** with **TypeScript 4.9.5** - Modern UI with type safety
-- **Socket.io-client** - Real-time WebSocket communication 🆕
-- **React-Toastify** - Real-time notification system 🆕
+- **Socket.io-client 4.x** - Real-time WebSocket communication
+- **React-Toastify** - Real-time notification system
 - **Material-UI 7.3.2** - Complete design system with icons
 - **Material-UI X-Charts 8.11.2** & **X-Data-Grid 8.11.2** - Advanced data visualization
 - **React Hook Form 7.62.0** - Performance-optimized form handling
 - **React Router Dom 7.9.1** - Client-side routing
 - **Axios 1.12.2** - HTTP client for API communication
 - **Chart.js 4.5.0** & **Recharts 3.2.0** - Interactive analytics charts
-- **Framer Motion 12.23.12** - Advanced animations and micro-interactions
+- **Framer Motion 12.23.12** - Advanced animations
 - **Date-fns 4.1.0** - Modern date manipulation
-- **Stripe React Components 4.0.2** - Payment UI integration
 - **XLSX 0.18.5** - Excel file processing
 
 ### **Backend (Node.js Server)**
 - **Node.js** with **Express.js 4.18.2** - RESTful API framework
-- **Socket.io** - Real-time WebSocket server with authentication 🆕
+- **Socket.io 4.x** - Real-time WebSocket server with authentication
 - **MongoDB** with **Mongoose 8.0.3** - Database and ODM
 - **JWT (jsonwebtoken 9.0.2)** - Stateless authentication
 - **bcrypt.js 2.4.3** - Password hashing (12 salt rounds)
@@ -219,75 +268,74 @@ Quest/
 ├── client/                   # React Frontend (Port: 3000)
 │   ├── src/
 │   │   ├── components/      # Reusable UI components
+│   │   │   ├── FeedbackManagement.tsx       # Admin support ticket management 🆕
+│   │   │   ├── SupportCenter.tsx            # Customer support portal 🆕
+│   │   │   ├── billing/
+│   │   │   │   └── BillingDashboard.tsx    # Billing with accurate pricing
 │   │   │   ├── AdminDashboard.tsx
-│   │   │   ├── BillingDashboard.tsx
 │   │   │   ├── PaymentForm.tsx
 │   │   │   ├── StatCard.tsx
 │   │   │   └── UserManagementContainer.tsx
 │   │   ├── pages/           # Page components
-│   │   │   ├── AdminDashboard.tsx
-│   │   │   ├── CustomerDashboard.tsx
-│   │   │   ├── SubscriptionsPage.tsx
+│   │   │   ├── AdminDashboard.tsx           # Admin with Support section 🆕
+│   │   │   ├── CustomerDashboard.tsx        # Customer with Support 🆕
+│   │   │   ├── SubscriptionsPage.tsx        # Correct pricing display
 │   │   │   └── Login.tsx
 │   │   ├── contexts/        # React contexts
-│   │   │   └── AuthContext.tsx
+│   │   │   ├── AuthContext.tsx              # Token management (access_token) 🆕
+│   │   │   └── RealtimeContext.tsx          # WebSocket connection
 │   │   ├── services/        # API service layers
 │   │   │   ├── adminService.ts
 │   │   │   ├── authService.ts
-│   │   │   ├── paymentService.ts
-│   │   │   └── subscriptionService.ts
+│   │   │   ├── billingService.ts            # Updated for 1-month cycles
+│   │   │   ├── customerService.ts           # Subscription sync
+│   │   │   └── api.ts                       # Token manager (access_token)
 │   │   ├── types/           # TypeScript interfaces
 │   │   │   └── index.ts
 │   │   └── utils/           # Utility functions
 │   ├── public/              # Static assets
 │   └── package.json         # Frontend dependencies
-├── server/                   # Node.js Backend (Port: 5000)
+├── server/                   # Node.js Backend (Port: 5001)
 │   ├── controllers/         # Request handlers
+│   │   ├── feedbackController.js            # Support ticket operations 🆕
 │   │   ├── adminController.js
 │   │   ├── authController.js
 │   │   ├── billingController.js
-│   │   ├── customerController.js
+│   │   ├── customerController.js            # Subscription sync logic 🆕
 │   │   ├── paymentController.js
 │   │   └── subscriptionController.js
 │   ├── models/              # MongoDB schemas
+│   │   ├── Feedback.js                      # Support ticket schema 🆕
 │   │   ├── User.js
 │   │   ├── Plan.js
 │   │   ├── Subscription.js
 │   │   ├── Billing.js
+│   │   ├── BillingInvoice.js
 │   │   ├── Usage.js
 │   │   ├── UsageAnalytics.js
-│   │   ├── UsageLog.js
-│   │   ├── PricingHistory.js
-│   │   ├── Feedback.js
 │   │   └── AuditLog.js
 │   ├── routes/              # API route definitions
+│   │   ├── feedback.js                      # Support ticket routes 🆕
+│   │   ├── pdf.js                           # Invoice PDF with user data 🆕
 │   │   ├── admin.js
 │   │   ├── auth.js
 │   │   ├── billing.js
-│   │   ├── customer.js
-│   │   ├── payments.js
-│   │   ├── analytics.js
-│   │   ├── feedback.js
-│   │   └── notificationRoutes.js
+│   │   ├── customer.js                      # Updated subscription endpoints
+│   │   ├── subscriptions.js                 # Pricing sync routes
+│   │   └── analytics.js
 │   ├── middleware/          # Custom middleware
-│   │   ├── auth.js
-│   │   └── errorHandler.js
+│   │   ├── auth.js                          # authenticateToken & authorize 🆕
+│   │   └── errorHandler.js                  # asyncHandler export
 │   ├── services/            # Business logic services
-│   │   ├── billingService.js
-│   │   ├── emailService.js
-│   │   ├── usageService.js
-│   │   └── recommendationService.js
-│   ├── scripts/             # Database and utility scripts
-│   │   ├── seedData.js
-│   │   ├── seedFlexiSub.js
-│   │   ├── seedExcelData.js
-│   │   ├── analyzeExcel.js
-│   │   ├── importExcelData.js
-│   │   └── cleanupDummyData.js
+│   │   ├── billingService.js                # 1-month billing logic 🆕
+│   │   ├── emailService.js                  # Support notifications
+│   │   └── realTimeEvents.js                # WebSocket event emission
+│   ├── config/              # Configuration
+│   │   └── db.js                            # MongoDB Atlas connection
 │   ├── utils/               # Utility functions
 │   │   └── errorResponse.js
 │   ├── .env                 # Environment variables
-│   ├── server.js            # Main server file
+│   ├── server.js            # Main server file with Socket.io
 │   └── package.json         # Backend dependencies
 ├── docs/                    # Project documentation
 ├── SubscriptionUseCase_Dataset.xlsx  # Sample data for testing
