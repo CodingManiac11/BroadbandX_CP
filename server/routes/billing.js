@@ -672,4 +672,62 @@ router.post('/create-upgrade-scenario', authenticateToken, createUpgradeScenario
 router.post('/process-upgrade-payment/:invoiceId', authenticateToken, processUpgradePayment);
 router.get('/invoices/:userId', authenticateToken, getUserInvoices);
 
+// Payment completion endpoint
+router.post('/complete-payment', async (req, res) => {
+  try {
+    const { invoiceId, paymentId, transactionId } = req.body;
+    console.log('🎯 Payment completion request:', { invoiceId, paymentId, transactionId });
+
+    if (!invoiceId && !paymentId) {
+      return res.status(400).json({ error: 'Invoice ID or Payment ID is required' });
+    }
+
+    // Import Subscription model (check if it exists)
+    const Subscription = require('../models/Subscription');
+
+    // Find the subscription with the pending payment
+    const subscription = await Subscription.findOne({
+      'paymentHistory._id': paymentId || invoiceId
+    });
+
+    if (!subscription) {
+      console.log('❌ Subscription not found for payment:', paymentId || invoiceId);
+      return res.status(404).json({ error: 'Payment not found' });
+    }
+
+    console.log('📋 Found subscription:', subscription._id);
+
+    // Update the specific payment in paymentHistory
+    const paymentIndex = subscription.paymentHistory.findIndex(
+      p => p._id.toString() === (paymentId || invoiceId)
+    );
+
+    if (paymentIndex === -1) {
+      console.log('❌ Payment not found in history');
+      return res.status(404).json({ error: 'Payment not found in history' });
+    }
+
+    // Update payment status
+    subscription.paymentHistory[paymentIndex].status = 'completed';
+    subscription.paymentHistory[paymentIndex].paymentMethod = 'upi';
+    subscription.paymentHistory[paymentIndex].transactionId = transactionId || `TXN${Date.now()}`;
+    subscription.paymentHistory[paymentIndex].date = new Date();
+
+    // Save the updated subscription
+    await subscription.save();
+
+    console.log('✅ Payment status updated successfully');
+
+    res.json({
+      success: true,
+      message: 'Payment completed successfully',
+      payment: subscription.paymentHistory[paymentIndex]
+    });
+
+  } catch (error) {
+    console.error('❌ Error completing payment:', error);
+    res.status(500).json({ error: 'Failed to complete payment' });
+  }
+});
+
 module.exports = router;

@@ -1,9 +1,15 @@
+// DEPRECATED: This model is part of the complex billing system that's not being used
+// The app uses the simpler Plan.js model instead
+// Keeping this file for reference but commenting out to prevent collection creation
+
+/*
 const mongoose = require('mongoose');
 
 /**
  * Billing Plans Model
  * All prices stored as integer cents to avoid floating point arithmetic
  */
+/*
 const billingPlanSchema = new mongoose.Schema({
   // Unique plan identifier
   plan_id: {
@@ -103,4 +109,8 @@ billingPlanSchema.pre('save', function(next) {
   next();
 });
 
-module.exports = mongoose.model('BillingPlan', billingPlanSchema);
+// module.exports = mongoose.model('BillingPlan', billingPlanSchema);
+*/
+
+// Redirect to simpler Plan model
+module.exports = require('./Plan');

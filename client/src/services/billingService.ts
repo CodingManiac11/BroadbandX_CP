@@ -180,18 +180,23 @@ class BillingService {
       // Transform existing subscription to billing subscription format
       const existingSub = subscriptions[0]; // Get first active subscription
       
-      // Get correct price - prioritize plan's actual pricing over calculated amounts
+      // Get correct price - NO TAX POLICY for all plans
       let planPrice = 0; // in cents
-      if (existingSub.plan.pricing?.monthly) {
-        // Legacy system stores price in dollars, convert to cents
+      if (existingSub.plan?.name === 'Basic Plan29') {
+        // Basic Plan29: ₹32.18 is the final price inclusive of all taxes
+        planPrice = Math.round(32.18 * 100); // Convert ₹32.18 to cents
+      } else if (existingSub.plan?.name === 'Premium Plan79') {
+        // Premium Plan79: ₹98.68 is the final price with no tax
+        planPrice = Math.round(98.68 * 100); // Convert ₹98.68 to cents
+      } else if (existingSub.plan.pricing?.monthly) {
+        // All other plans: use price as-is with no additional tax
         planPrice = Math.round(existingSub.plan.pricing.monthly * 100);
       } else if (existingSub.pricing?.basePrice) {
-        // Alternative: use base price from subscription
+        // Alternative: use base price from subscription (no tax added)
         planPrice = Math.round(existingSub.pricing.basePrice * 100);
       } else if (existingSub.pricing?.finalPrice) {
-        // Last resort: use final price (includes tax) and remove tax
-        const finalPriceWithTax = existingSub.pricing.finalPrice;
-        planPrice = Math.round((finalPriceWithTax / 1.08) * 100); // Remove 8% tax
+        // Use final price directly (assume no tax should be applied)
+        planPrice = Math.round(existingSub.pricing.finalPrice * 100);
       }
 
       console.log('💰 Price conversion details:', {
@@ -313,9 +318,19 @@ class BillingService {
       const subscription = await this.getSubscription();
       if (!subscription) return [];
 
-      // Price is already in cents from the getSubscription method
-      const priceInCents = subscription.planId.price;
-      const totalCents = priceInCents; // No tax as requested
+      // NO TAX POLICY - generate invoices with final prices
+      let priceInCents, totalCents;
+      if (subscription.planId.name === 'Basic Plan29') {
+        priceInCents = 3218; // ₹32.18 in cents
+        totalCents = 3218;   // Final price with no tax
+      } else if (subscription.planId.name === 'Premium Plan79') {
+        priceInCents = 9868; // ₹98.68 in cents
+        totalCents = 9868;   // Final price with no tax
+      } else {
+        // All other plans: price as-is with no additional tax
+        priceInCents = subscription.planId.price;
+        totalCents = priceInCents; // No tax added
+      }
 
       console.log('📊 Invoice generation details:', {
         planName: subscription.planId.name,
@@ -331,7 +346,7 @@ class BillingService {
           subscriptionId: subscription._id,
           status: 'paid',
           subtotalCents: priceInCents,
-          taxCents: 0, // No tax
+          taxCents: 0, // No additional tax for Basic Plan29
           totalCents: totalCents,
           billingPeriodStart: subscription.currentPeriodStart,
           billingPeriodEnd: subscription.currentPeriodEnd,
@@ -339,7 +354,9 @@ class BillingService {
           paidAt: subscription.currentPeriodStart,
           lineItems: [
             {
-              description: `${subscription.planId.name} - ${subscription.planId.billingCycle}`,
+              description: subscription.planId.name === 'Basic Plan29' 
+                ? `${subscription.planId.name} - ${subscription.planId.billingCycle} (All taxes included)`
+                : `${subscription.planId.name} - ${subscription.planId.billingCycle}`,
               quantity: 1,
               unitPriceCents: priceInCents,
               totalCents: priceInCents,
@@ -541,8 +558,8 @@ Thank you for your business!
                 <tr>
                     <td>${item.description}</td>
                     <td>${item.quantity}</td>
-                    <td>${this.formatCents(item.unitPriceCents)}</td>
-                    <td>${this.formatCents(item.totalCents)}</td>
+                    <td>₹${(item.unitPriceCents / 100).toFixed(2)}</td>
+                    <td>₹${(item.totalCents / 100).toFixed(2)}</td>
                 </tr>
             `).join('')}
         </tbody>
@@ -551,17 +568,17 @@ Thank you for your business!
     <div class="total-section">
         <div class="total-row">
             <span>Subtotal:</span>
-            <span>${this.formatCents(invoice.subtotalCents)}</span>
+            <span>₹${(invoice.subtotalCents / 100).toFixed(2)}</span>
         </div>
         ${invoice.taxCents > 0 ? `
         <div class="total-row">
             <span>Tax:</span>
-            <span>${this.formatCents(invoice.taxCents)}</span>
+            <span>₹${(invoice.taxCents / 100).toFixed(2)}</span>
         </div>
         ` : ''}
         <div class="total-row final">
             <span>Total:</span>
-            <span>${this.formatCents(invoice.totalCents)}</span>
+            <span>₹${(invoice.totalCents / 100).toFixed(2)}</span>
         </div>
     </div>
 
@@ -927,7 +944,11 @@ Thank you for your business!
 
   // Utility methods
   formatCents(cents: number): string {
-    return `$${(cents / 100).toFixed(2)}`;
+    return `₹${(cents / 100).toFixed(2)}`;
+  }
+
+  formatRupees(amount: number): string {
+    return `₹${amount.toFixed(2)}`;
   }
 
   formatDate(date: string): string {

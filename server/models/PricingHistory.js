@@ -1,3 +1,7 @@
+// DEPRECATED: This model is part of the complex billing system that's not being used
+// Keeping this file for reference but commenting out to prevent collection creation
+
+/*
 const mongoose = require('mongoose');
 
 const pricingHistorySchema = new mongoose.Schema({
@@ -89,4 +93,8 @@ pricingHistorySchema.virtual('priceChangeDirection').get(function() {
   return 'no-change';
 });
 
-module.exports = mongoose.model('PricingHistory', pricingHistorySchema);
+// module.exports = mongoose.model('PricingHistory', pricingHistorySchema);
+*/
+
+// Placeholder export to prevent import errors
+module.exports = {};

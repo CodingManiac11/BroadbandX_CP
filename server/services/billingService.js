@@ -331,8 +331,12 @@ class BillingService {
       // Generate invoice number
       const invoiceNumber = await BillingInvoice.generateInvoiceNumber();
       
-      // Calculate due date (30 days from now if not specified)
-      const calculatedDueDate = dueDate || new Date(Date.now() + (30 * 24 * 60 * 60 * 1000));
+      // Calculate due date as 1 month from period end (aligns with monthly billing cycle)
+      const calculatedDueDate = dueDate || (() => {
+        const dueDateCalc = new Date(periodEnd);
+        dueDateCalc.setMonth(dueDateCalc.getMonth() + 1);
+        return dueDateCalc;
+      })();
       
       // Create invoice
       const invoice = new BillingInvoice({

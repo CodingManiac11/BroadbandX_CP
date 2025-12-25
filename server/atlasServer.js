@@ -19,7 +19,12 @@ app.use(express.json());
 // MongoDB Connection
 const connectDB = async () => {
     try {
-        const conn = await mongoose.connect('mongodb+srv://adityautsav1901:aditya1@cluster0.glddswq.mongodb.net/broadband-subscription-db?retryWrites=true&w=majority');
+        // Always use the MONGO_URI from environment variables
+        if (!process.env.MONGO_URI) {
+            throw new Error('MONGO_URI not found in environment variables');
+        }
+        
+        const conn = await mongoose.connect(process.env.MONGO_URI);
         console.log('✅ Connected to MongoDB Atlas');
         console.log(`📍 Database: ${conn.connection.name}`);
         console.log(`🌐 Host: ${conn.connection.host}`);
@@ -92,9 +97,9 @@ app.get('/api/customer/subscriptions', async (req, res) => {
         const SubscriptionSchema = new mongoose.Schema({}, { strict: false });
         const PlanSchema = new mongoose.Schema({}, { strict: false });
         
-        const User = mongoose.models.User || mongoose.model('User', UserSchema, 'Users');
-        const Subscription = mongoose.models.Subscription || mongoose.model('Subscription', SubscriptionSchema, 'Subscriptions');
-        const Plan = mongoose.models.Plan || mongoose.model('Plan', PlanSchema, 'Plans');
+        const User = mongoose.models.User || mongoose.model('User', UserSchema, 'users');
+        const Subscription = mongoose.models.Subscription || mongoose.model('Subscription', SubscriptionSchema, 'subscriptions');
+        const Plan = mongoose.models.Plan || mongoose.model('Plan', PlanSchema, 'plans');
         
         // Find user
         const user = await User.findOne({ email });
@@ -139,9 +144,9 @@ app.get('/api/admin/subscriptions', async (req, res) => {
         const SubscriptionSchema = new mongoose.Schema({}, { strict: false });
         const PlanSchema = new mongoose.Schema({}, { strict: false });
         
-        const User = mongoose.models.User || mongoose.model('User', UserSchema, 'Users');
-        const Subscription = mongoose.models.Subscription || mongoose.model('Subscription', SubscriptionSchema, 'Subscriptions');
-        const Plan = mongoose.models.Plan || mongoose.model('Plan', PlanSchema, 'Plans');
+        const User = mongoose.models.User || mongoose.model('User', UserSchema, 'users');
+        const Subscription = mongoose.models.Subscription || mongoose.model('Subscription', SubscriptionSchema, 'subscriptions');
+        const Plan = mongoose.models.Plan || mongoose.model('Plan', PlanSchema, 'plans');
         
         // Get all subscriptions
         const subscriptions = await Subscription.find({});

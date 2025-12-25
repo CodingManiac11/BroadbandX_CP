@@ -13,7 +13,8 @@ router.get('/stats', customerController.getCustomerStats);
 router.get('/subscriptions', customerController.getCustomerSubscriptions);
 router.post('/subscriptions', customerController.subscribeToPlan);
 router.put('/subscriptions/:subscriptionId/cancel', customerController.cancelSubscription);
-router.put('/subscriptions/:subscriptionId/modify', customerController.modifySubscription);
+// DISABLED: One-time purchase only - no plan modifications allowed
+// router.put('/subscriptions/:subscriptionId/modify', customerController.modifySubscription);
 
 // Plan browsing
 router.get('/plans', customerController.getAvailablePlans);

@@ -9,6 +9,7 @@ import {
   Snackbar,
   Paper
 } from '@mui/material';
+import { useRealtime } from '../contexts/RealtimeContext';
 import {
   Receipt as BillingIcon,
   Settings as SettingsIcon,
@@ -52,6 +53,9 @@ const BillingPage: React.FC = () => {
   const [subscription, setSubscription] = useState<BillingSubscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Connect to real-time updates
+  const { refreshTrigger } = useRealtime();
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -65,6 +69,14 @@ const BillingPage: React.FC = () => {
   useEffect(() => {
     fetchSubscription();
   }, []);
+
+  // Refresh subscription when real-time events occur
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      console.log('📡 BillingPage: Real-time update detected (trigger:', refreshTrigger, '), refreshing subscription...');
+      fetchSubscription();
+    }
+  }, [refreshTrigger]);
 
   const fetchSubscription = async () => {
     try {

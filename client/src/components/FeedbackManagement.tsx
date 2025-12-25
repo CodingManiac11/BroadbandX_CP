@@ -57,8 +57,15 @@ const FeedbackManagement: React.FC = () => {
   const fetchFeedback = async (reset = false) => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/feedback`, {
+      const token = localStorage.getItem('access_token'); // Use correct token key
+      
+      if (!token || token === 'null' || token === 'undefined') {
+        setError('Please login again to access this feature');
+        setLoading(false);
+        return;
+      }
+      
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/feedback/all`, {
         headers: { Authorization: `Bearer ${token}` },
         params: {
           page: reset ? 1 : page,
@@ -97,7 +104,7 @@ const FeedbackManagement: React.FC = () => {
     if (!selectedFeedback || !response.trim()) return;
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('access_token');
       await axios.put(
         `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/feedback/${selectedFeedback._id}`,
         { response, status: 'responded' },

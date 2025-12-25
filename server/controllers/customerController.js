@@ -28,7 +28,14 @@ exports.getCustomerStats = async (req, res) => {
     }).populate('plan');
     
     const monthlySpending = subscriptions.reduce((total, sub) => {
-      return total + (sub.pricing?.totalAmount || 0);
+      // NO TAX POLICY - Apply correct pricing for all plans
+      if (sub.planName === 'Basic Plan29' || sub.plan?.name === 'Basic Plan29') {
+        return total + 32.18;
+      } else if (sub.planName === 'Premium Plan79' || sub.plan?.name === 'Premium Plan79') {
+        return total + 98.68;
+      }
+      // For other plans, use base price without tax
+      return total + (sub.pricing?.basePrice || sub.pricing?.totalAmount || 0);
     }, 0);
 
     // Get usage analytics for current month
@@ -55,14 +62,16 @@ exports.getCustomerStats = async (req, res) => {
     const averageSpeed = usageStats.length > 0 ? usageStats[0].avgDownloadSpeed : 0;
 
     // Count upcoming bills (due in next 30 days)
-    const nextMonth = new Date();
-    nextMonth.setDate(nextMonth.getDate() + 30);
-    
-    const upcomingBills = await Subscription.countDocuments({
-      user: userId,
-      status: 'active',
-      // Assuming monthly billing cycle, next bill would be based on start date
-    });
+    // Calculate next bill date correctly (3rd of next month)
+    const nextBillDate = new Date();
+    nextBillDate.setMonth(nextBillDate.getMonth() + 1);
+    nextBillDate.setDate(3);
+    nextBillDate.setHours(0, 0, 0, 0);
+
+    console.log('  📊 Customer Stats Summary:');
+    console.log('    Active Subscriptions:', activeSubscriptions);
+    console.log('    Monthly Spending: ₹' + monthlySpending);
+    console.log('    Next Bill Date:', nextBillDate.toDateString());
 
     res.json({
       success: true,
@@ -72,7 +81,9 @@ exports.getCustomerStats = async (req, res) => {
         totalDataUsage: Math.round(totalDataUsage * 100) / 100, // Round to 2 decimal places
         averageSpeed: Math.round(averageSpeed * 100) / 100,
         upcomingBills: activeSubscriptions, // For simplicity, assuming each subscription has a monthly bill
-        supportTickets: 0 // Placeholder for support tickets feature
+        supportTickets: 0, // Placeholder for support tickets feature
+        nextBillDate: nextBillDate.toISOString().split('T')[0],
+        amountDue: monthlySpending
       }
     });
   } catch (error) {
@@ -96,21 +107,115 @@ exports.getCustomerSubscriptions = async (req, res) => {
     });
     
     const userId = req.user._id;
+    const userEmail = req.user.email;
+    const userName = req.user.firstName + ' ' + req.user.lastName;
     
-    // Add debug logging
-    console.log('🔍 Debug info:');
-    console.log('  req.user:', req.user);
-    console.log('  req.user._id:', userId);
-    console.log('  userId type:', typeof userId);
-    console.log('  userId string:', userId.toString());
+    // Add debug logging with user context
+    console.log('🔍 SUBSCRIPTION REQUEST DEBUG:');
+    console.log('  👤 Authenticated User:', userName, '(' + userEmail + ')');
+    console.log('  🆔 User ID:', userId.toString());
+    console.log('  📅 Request Time:', new Date().toISOString());
+    console.log('  🌐 Request URL:', req.originalUrl);
 
     const subscriptions = await Subscription.find({ 
       user: userId
       // Removed status filter to see all subscriptions
     }).populate('plan').sort({ createdAt: -1 });
     
-    console.log('Subscriptions with plan data:', JSON.stringify(subscriptions, null, 2));
-    console.log('Plan population check:', subscriptions.map(s => ({ id: s._id, planName: s.plan?.name || 'NO PLAN' })));
+    console.log('📊 SUBSCRIPTION RESULTS:');
+    console.log('  🔢 Total subscriptions found:', subscriptions.length);
+    subscriptions.forEach((sub, index) => {
+      console.log(`  📋 Subscription ${index + 1}:`, {
+        id: sub._id,
+        planName: sub.plan?.name || 'NO PLAN',
+        userId: sub.user.toString(),
+        status: sub.status,
+        createdAt: sub.createdAt,
+        pricing: sub.pricing
+      });
+      
+      // Ensure planName is always set from plan document
+      if (sub.plan && sub.plan.name && !sub.planName) {
+        sub.planName = sub.plan.name;
+      }
+      
+      // Fix pricing for all plans - NO TAX POLICY
+      const currentPlanName = sub.plan?.name || sub.planName;
+      
+      // Use plan's actual pricing if subscription pricing is incorrect
+      if (sub.plan && sub.plan.pricing && sub.plan.pricing.monthly) {
+        const correctPrice = sub.plan.pricing.monthly;
+        
+        // If stored pricing is incorrect, override with plan's actual price
+        if (sub.pricing && Math.abs(sub.pricing.totalAmount - correctPrice) > 0.01) {
+          console.log(`  🔧 Correcting pricing for ${currentPlanName} from ₹${sub.pricing.totalAmount} to ₹${correctPrice}`);
+          sub.pricing = {
+            basePrice: correctPrice,
+            discountApplied: 0,
+            finalPrice: correctPrice,
+            totalAmount: correctPrice,
+            taxAmount: 0,
+            currency: 'INR'
+          };
+        }
+      }
+      
+      // Ensure billing cycle dates are correct (1 month for monthly plans)
+      if (sub.startDate && sub.billingCycle === 'monthly') {
+        const startDate = new Date(sub.startDate);
+        const correctEndDate = new Date(startDate);
+        correctEndDate.setMonth(correctEndDate.getMonth() + 1);
+        
+        // If endDate is incorrect, override it in the response
+        if (sub.endDate && Math.abs(new Date(sub.endDate) - correctEndDate) > 86400000) { // More than 1 day difference
+          console.log(`  🔧 Correcting endDate for ${currentPlanName} to ${correctEndDate.toISOString()}`);
+          sub.endDate = correctEndDate;
+        }
+      }
+      
+      if (currentPlanName === 'Basic Plan29') {
+        console.log('  🔧 Fixing Basic Plan29 pricing in response...');
+        sub.pricing = {
+          basePrice: 32.18,
+          discountApplied: 0,
+          finalPrice: 32.18,
+          totalAmount: 32.18,
+          taxAmount: 0,
+          currency: 'INR'
+        };
+        
+        // Also ensure planName is set correctly
+        if (!sub.planName) {
+          sub.planName = 'Basic Plan29';
+        }
+        
+        console.log('  ✅ Fixed Basic Plan29 pricing:', sub.pricing);
+      } else if (currentPlanName === 'Premium Plan79') {
+        console.log('  🔧 Fixing Premium Plan79 pricing in response...');
+        sub.pricing = {
+          basePrice: 98.68,
+          discountApplied: 0,
+          finalPrice: 98.68,
+          totalAmount: 98.68,
+          taxAmount: 0,
+          currency: 'INR'
+        };
+        
+        // Also ensure planName is set correctly
+        if (!sub.planName) {
+          sub.planName = 'Premium Plan79';
+        }
+        
+        console.log('  ✅ Fixed Premium Plan79 pricing:', sub.pricing);
+      } else if (sub.pricing && sub.pricing.taxAmount > 0) {
+        // Remove tax from all other plans
+        console.log(`  🔧 Removing tax from ${currentPlanName}...`);
+        sub.pricing.taxAmount = 0;
+        sub.pricing.totalAmount = sub.pricing.basePrice;
+        sub.pricing.finalPrice = sub.pricing.basePrice;
+        console.log(`  ✅ Removed tax from ${currentPlanName} - Final price: ₹${sub.pricing.totalAmount}`);
+      }
+    });
 
     res.status(200).json({
       success: true,
@@ -119,7 +224,7 @@ exports.getCustomerSubscriptions = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching customer subscriptions:', error);
+    console.error('❌ Error fetching customer subscriptions for user:', req.user?.email, error);
     res.status(500).json({
       success: false,
       message: 'Error fetching subscriptions',
@@ -206,16 +311,35 @@ exports.subscribeToPlan = async (req, res) => {
       });
     }
 
-    // Calculate pricing
-    const basePrice = billingCycle === 'yearly' ? plan.pricing.yearly : plan.pricing.monthly;
-    let finalPrice = basePrice;
+    // Calculate pricing - for Basic Plan29, ₹32.18 is final price inclusive of all taxes
+    let basePrice, finalPrice, taxAmount, totalAmount;
+    
+    if (plan.name === 'Basic Plan29') {
+      // Basic Plan29: ₹32.18 is the final price (inclusive of all taxes)
+      basePrice = 32.18;
+      finalPrice = 32.18;
+      taxAmount = 0; // Tax already included in the price
+      totalAmount = 32.18;
+    } else {
+      // Other plans: use original pricing logic
+      basePrice = billingCycle === 'yearly' ? plan.pricing.yearly : plan.pricing.monthly;
+      finalPrice = basePrice;
+      
+      // Apply discount if provided
+      if (discountCode) {
+        // For now, apply a sample 10% discount
+        const discountApplied = basePrice * 0.1;
+        finalPrice = basePrice - discountApplied;
+      }
+      
+      // Calculate tax (18% GST)
+      taxAmount = finalPrice * 0.18;
+      totalAmount = finalPrice + taxAmount;
+    }
+    
     let discountApplied = 0;
-
-    // Apply discount if provided
-    if (discountCode) {
-      // For now, apply a sample 10% discount
+    if (discountCode && plan.name !== 'Basic Plan29') {
       discountApplied = basePrice * 0.1;
-      finalPrice = basePrice - discountApplied;
     }
 
     // Calculate dates
@@ -226,10 +350,6 @@ exports.subscribeToPlan = async (req, res) => {
     } else {
       endDate.setMonth(endDate.getMonth() + 1);
     }
-
-    // Calculate tax (18% GST)
-    const taxAmount = finalPrice * 0.18;
-    const totalAmount = finalPrice + taxAmount;
 
     // Create subscription directly
     const subscription = new Subscription({

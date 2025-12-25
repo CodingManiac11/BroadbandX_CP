@@ -8,18 +8,24 @@ const authenticateToken = async (req, res, next) => {
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
     if (!token) {
+      console.log('❌ No token provided');
       return res.status(401).json({
         status: 'error',
         message: 'Access token is required'
       });
     }
 
+    console.log('🔍 Verifying token...');
+    console.log('📝 Token length:', token.length, 'First 20 chars:', token.substring(0, 20));
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('✅ Token decoded, User ID:', decoded.id);
+    console.log('✅ Token decoded, User ID:', decoded.id);
     
     // Get user from database with error handling
     let user;
     try {
       user = await User.findById(decoded.id).select('-password');
+      console.log('👤 User found:', user ? `${user.email} (${user.role})` : 'NOT FOUND');
     } catch (dbError) {
       console.error('Database error in authentication:', dbError);
       return res.status(500).json({
@@ -29,6 +35,7 @@ const authenticateToken = async (req, res, next) => {
     }
     
     if (!user) {
+      console.log('❌ User not found in database');
       return res.status(401).json({
         status: 'error',
         message: 'Invalid token - user not found'
@@ -36,15 +43,18 @@ const authenticateToken = async (req, res, next) => {
     }
 
     if (user.status !== 'active') {
+      console.log('❌ User account not active:', user.status);
       return res.status(401).json({
         status: 'error',
         message: 'Account is not active'
       });
     }
 
+    console.log('✅ Authentication successful, User:', user.email, 'Role:', user.role);
     req.user = user;
     next();
   } catch (error) {
+    console.log('❌ Authentication error:', error.name, error.message);
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({
         status: 'error',

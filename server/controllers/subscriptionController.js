@@ -313,7 +313,8 @@ const upgradePlan = asyncHandler(async (req, res) => {
   subscription.plan = newPlanId;
   subscription.pricing.basePrice = newPrice;
   subscription.pricing.finalPrice = newPrice;
-  subscription.pricing.totalAmount = newPrice + subscription.pricing.taxAmount;
+  subscription.pricing.taxAmount = 0; // NO TAX POLICY
+  subscription.pricing.totalAmount = newPrice;
 
   await subscription.save();
 
@@ -338,6 +339,14 @@ const upgradePlan = asyncHandler(async (req, res) => {
       oldPlan: oldPlan.name,
       newPlan: newPlan.name,
       additionalCost
+    });
+    
+    // Also emit billing update for immediate UI refresh
+    global.realTimeEvents.billingUpdated(req.user._id.toString(), {
+      subscription,
+      planChanged: true,
+      oldPlan: oldPlan.name,
+      newPlan: newPlan.name
     });
   }
 
@@ -410,7 +419,8 @@ const downgradePlan = asyncHandler(async (req, res) => {
     subscription.plan = newPlanId;
     subscription.pricing.basePrice = subscription.billingCycle === 'yearly' ? newPlan.pricing.yearly : newPlan.pricing.monthly;
     subscription.pricing.finalPrice = subscription.pricing.basePrice;
-    subscription.pricing.totalAmount = subscription.pricing.basePrice + subscription.pricing.taxAmount;
+    subscription.pricing.taxAmount = 0; // NO TAX POLICY
+    subscription.pricing.totalAmount = subscription.pricing.basePrice;
 
     await subscription.save();
 

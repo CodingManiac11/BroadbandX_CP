@@ -1,9 +1,15 @@
+// DEPRECATED: This model is part of the complex billing system that's not being used
+// The app uses simpler models instead
+// Keeping this file for reference but commenting out to prevent collection creation
+
+/*
 const mongoose = require('mongoose');
 
 /**
  * Billing Adjustments Model
  * Credits, charges, and other adjustments applied to subscriptions
  */
+/*
 const billingAdjustmentSchema = new mongoose.Schema({
   // Reference to the subscription
   subscription_id: {
@@ -279,4 +285,8 @@ billingAdjustmentSchema.statics.createProrationAdjustment = function(subscriptio
   });
 };
 
-module.exports = mongoose.model('BillingAdjustment', billingAdjustmentSchema);
+// module.exports = mongoose.model('BillingAdjustment', billingAdjustmentSchema);
+*/
+
+// Placeholder export to prevent import errors
+module.exports = {};

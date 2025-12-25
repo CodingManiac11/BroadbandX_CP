@@ -88,7 +88,6 @@ const CustomerDashboard: React.FC = () => {
   });
   
   // New state for modals and functionality
-  const [showModifyModal, setShowModifyModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showUsageModal, setShowUsageModal] = useState(false);
   const [selectedSubscription, setSelectedSubscription] = useState<Subscription | null>(null);
@@ -127,7 +126,7 @@ const CustomerDashboard: React.FC = () => {
     initializeDashboard();
   }, []);
 
-  // Debug user data and ensure WebSocket authentication
+
   useEffect(() => {
     console.log('🧑 User data received:', user);
     console.log('📡 Real-time connection status:', isConnected);
@@ -171,7 +170,19 @@ const CustomerDashboard: React.FC = () => {
 
   const calculateStatsFromSubscriptions = (subs: Subscription[]) => {
     const activeSubs = subs.filter(sub => sub.status === 'active');
-    const totalMonthlySpending = activeSubs.reduce((total, sub) => total + (sub.pricing?.finalPrice || 0), 0);
+    
+    // Calculate total monthly spending with NO TAX POLICY
+    const totalMonthlySpending = activeSubs.reduce((total, sub) => {
+      const planName = sub.plan?.name;
+
+      if (planName === 'Basic Plan29') {
+        return total + 32.18; // Final price with no tax
+      } else if (planName === 'Premium Plan79') {
+        return total + 98.68; // Final price with no tax
+      }
+      // For other plans, use base price without tax
+      return total + (sub.pricing?.basePrice || sub.pricing?.finalPrice || 0);
+    }, 0);
     
     return {
       activeSubscriptions: activeSubs.length,
@@ -303,15 +314,6 @@ const CustomerDashboard: React.FC = () => {
     setShowUsageModal(true);
   };
 
-  const handleModifyPlan = (subscription: Subscription) => {
-    setSelectedSubscription(subscription);
-    setShowModifyModal(true);
-    // Load available plans if not already loaded
-    if (availablePlans.length === 0) {
-      fetchAvailablePlans();
-    }
-  };
-
   const handleCancelSubscription = (subscription: Subscription) => {
     setSelectedSubscription(subscription);
     setShowCancelModal(true);
@@ -364,49 +366,6 @@ const CustomerDashboard: React.FC = () => {
       } catch (error) {
         console.error('Error cancelling subscription:', error);
         alert('Failed to cancel subscription. Please try again.');
-      }
-    }
-  };
-
-  const confirmModifyPlan = async (newPlan: Plan) => {
-    if (selectedSubscription) {
-      try {
-        console.log('Modifying subscription plan:', selectedSubscription._id, 'to', newPlan.name);
-        
-        // Try to use the real API first
-        try {
-          await customerService.modifySubscription(selectedSubscription._id, newPlan._id);
-          console.log('Successfully modified subscription via API');
-        } catch (apiError) {
-          console.log('API modification failed, updating local state:', apiError);
-          // If API fails, just update local state for demo purposes
-        }
-        
-        // Update local state regardless of API success/failure
-        setSubscriptions(prevSubs => 
-          prevSubs.map(sub => 
-            sub._id === selectedSubscription._id 
-              ? { 
-                  ...sub, 
-                  plan: newPlan,
-                  pricing: {
-                    ...sub.pricing,
-                    basePrice: newPlan.pricing.monthly,
-                    finalPrice: newPlan.pricing.monthly * 1.1 // Adding 10% tax
-                  }
-                }
-              : sub
-          )
-        );
-        
-        setShowModifyModal(false);
-        setSelectedSubscription(null);
-        
-        // Show success message
-        alert(`Plan modified to ${newPlan.name} successfully!`);
-      } catch (error) {
-        console.error('Error modifying subscription:', error);
-        alert('Failed to modify plan. Please try again.');
       }
     }
   };
@@ -733,13 +692,6 @@ const CustomerDashboard: React.FC = () => {
                     </Button>
                     <Button 
                       size="small" 
-                      variant="outlined"
-                      onClick={() => handleModifyPlan(subscription)}
-                    >
-                      Modify Plan
-                    </Button>
-                    <Button 
-                      size="small" 
                       variant="outlined" 
                       color="error"
                       onClick={() => handleCancelSubscription(subscription)}
@@ -879,7 +831,11 @@ const CustomerDashboard: React.FC = () => {
                       Next Bill Due
                     </Typography>
                     <Typography variant="h6" color="primary">
-                      October 15, 2025
+                      {stats.nextBillDate ? new Date(stats.nextBillDate).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      }) : 'N/A'}
                     </Typography>
                   </Box>
                   <Box mb={2}>
@@ -1068,68 +1024,6 @@ const CustomerDashboard: React.FC = () => {
                       <Typography variant="caption" color="textSecondary">
                         {new Date(history.date).toLocaleDateString()} by {history.performedBy}
                       </Typography>
-                    </CardContent>
-                  </Card>
-                ))}
-              </Box>
-            </Box>
-          )}
-        </ModalBody>
-      </Modal>
-
-      {/* Modify Plan Modal */}
-      <Modal
-        isOpen={showModifyModal}
-        onClose={() => setShowModifyModal(false)}
-        title="Modify Subscription Plan"
-        size="lg"
-      >
-        <ModalBody>
-          {selectedSubscription && (
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Current Plan: {selectedSubscription.plan.name}
-              </Typography>
-              <Typography variant="body2" color="textSecondary" gutterBottom>
-                Select a new plan to upgrade or downgrade your subscription
-              </Typography>
-              
-              <Box display="flex" flexWrap="wrap" gap={2} mt={3}>
-                {availablePlans.map((plan) => (
-                  <Card 
-                    key={plan._id} 
-                    sx={{ 
-                      minWidth: 250, 
-                      flex: '1 1 250px',
-                      border: selectedSubscription.plan._id === plan._id ? '2px solid' : '1px solid',
-                      borderColor: selectedSubscription.plan._id === plan._id ? 'primary.main' : 'divider'
-                    }}
-                  >
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>
-                        {plan.name}
-                        {selectedSubscription.plan._id === plan._id && (
-                          <Chip label="Current" size="small" sx={{ ml: 1 }} />
-                        )}
-                      </Typography>
-                      <Typography variant="body2" color="textSecondary" gutterBottom>
-                        {plan.description}
-                      </Typography>
-                      <Typography variant="h5" color="primary" gutterBottom>
-                        ₹{plan.pricing.monthly}/month
-                      </Typography>
-                      <Typography variant="body2" gutterBottom>
-                        Speed: {plan.features.speed.download} {plan.features.speed.unit}
-                      </Typography>
-                      <Button 
-                        variant={selectedSubscription.plan._id === plan._id ? "outlined" : "contained"}
-                        fullWidth
-                        sx={{ mt: 2 }}
-                        disabled={selectedSubscription.plan._id === plan._id}
-                        onClick={() => confirmModifyPlan(plan)}
-                      >
-                        {selectedSubscription.plan._id === plan._id ? "Current Plan" : "Select Plan"}
-                      </Button>
                     </CardContent>
                   </Card>
                 ))}

@@ -37,6 +37,7 @@ import {
   Email as EmailIcon,
   AccessTime as AccessTimeIcon
 } from '@mui/icons-material';
+import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Ticket {
@@ -47,12 +48,15 @@ interface Ticket {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   created: string;
   lastUpdated: string;
+  adminResponse?: string;
 }
 
 const SupportCenter: React.FC = () => {
+  const { user } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [newTicket, setNewTicket] = useState({
     title: '',
     description: '',
@@ -89,44 +93,76 @@ const SupportCenter: React.FC = () => {
   ];
 
   useEffect(() => {
-    // Load existing tickets (mock data for now)
-    const mockTickets: Ticket[] = [
-      {
-        id: '1',
-        title: 'Internet Speed Issue',
-        description: 'My internet speed is slower than expected',
-        status: 'in-progress',
+    loadTickets();
+  }, [user]);
+
+  const loadTickets = async () => {
+    if (!user) return;
+    
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await axios.get(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/feedback/user/${user._id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Convert feedback to ticket format
+      const feedbackTickets = response.data.data.map((feedback: any) => ({
+        id: feedback._id,
+        title: `${feedback.type} - Rating: ${feedback.rating?.overall || 'N/A'}`,
+        description: feedback.comment,
+        status: feedback.status === 'pending' ? 'open' : 
+                feedback.status === 'reviewed' ? 'in-progress' :
+                feedback.status === 'responded' ? 'resolved' : 'closed',
         priority: 'medium',
-        created: '2024-01-15T10:30:00Z',
-        lastUpdated: '2024-01-16T09:15:00Z'
-      }
-    ];
-    setTickets(mockTickets);
-  }, []);
+        created: feedback.createdAt,
+        lastUpdated: feedback.updatedAt,
+        adminResponse: feedback.response?.content
+      }));
+      
+      setTickets(feedbackTickets);
+    } catch (err) {
+      console.error('Error loading tickets:', err);
+      setError('Failed to load support tickets');
+    }
+  };
 
   const handleCreateTicket = async () => {
     if (!newTicket.title.trim() || !newTicket.description.trim()) return;
+    if (!user) return;
 
     setLoading(true);
+    setError('');
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const token = localStorage.getItem('access_token');
+      
+      // Submit as feedback to backend
+      await axios.post(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/feedback`,
+        {
+          type: 'support',
+          comment: `${newTicket.title}\n\n${newTicket.description}`,
+          rating: {
+            overall: 3,
+            speed: 3,
+            reliability: 3,
+            support: 3,
+            value: 3
+          },
+          sentiment: 'neutral',
+          source: 'support'
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-      const ticket: Ticket = {
-        id: Date.now().toString(),
-        title: newTicket.title,
-        description: newTicket.description,
-        status: 'open',
-        priority: newTicket.priority,
-        created: new Date().toISOString(),
-        lastUpdated: new Date().toISOString()
-      };
-
-      setTickets(prev => [ticket, ...prev]);
+      // Reload tickets
+      await loadTickets();
+      
       setNewTicket({ title: '', description: '', priority: 'medium' });
       setOpenDialog(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating ticket:', error);
+      setError(error.response?.data?.message || 'Failed to create support ticket');
     } finally {
       setLoading(false);
     }
@@ -157,6 +193,12 @@ const SupportCenter: React.FC = () => {
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: 'primary.main' }}>
         Support Center
       </Typography>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+          {error}
+        </Alert>
+      )}
 
       <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3 }}>
         {/* Quick Actions */}
@@ -241,27 +283,51 @@ const SupportCenter: React.FC = () => {
                     </TableHead>
                     <TableBody>
                       {tickets.map((ticket) => (
-                        <TableRow key={ticket.id}>
-                          <TableCell>#{ticket.id}</TableCell>
-                          <TableCell>{ticket.title}</TableCell>
-                          <TableCell>
-                            <Chip 
-                              label={ticket.status} 
-                              color={getStatusColor(ticket.status) as any}
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Chip 
-                              label={ticket.priority} 
-                              color={getPriorityColor(ticket.priority) as any}
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            {new Date(ticket.created).toLocaleDateString()}
-                          </TableCell>
-                        </TableRow>
+                        <React.Fragment key={ticket.id}>
+                          <TableRow>
+                            <TableCell>#{ticket.id.slice(-8)}</TableCell>
+                            <TableCell>{ticket.title}</TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={ticket.status} 
+                                color={getStatusColor(ticket.status) as any}
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={ticket.priority} 
+                                color={getPriorityColor(ticket.priority) as any}
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              {new Date(ticket.created).toLocaleDateString()}
+                            </TableCell>
+                          </TableRow>
+                          {ticket.description && (
+                            <TableRow>
+                              <TableCell colSpan={5} style={{ paddingLeft: '40px', backgroundColor: '#f5f5f5' }}>
+                                <Typography variant="subtitle2" gutterBottom>
+                                  <strong>Description:</strong>
+                                </Typography>
+                                <Typography variant="body2" style={{ whiteSpace: 'pre-wrap' }}>
+                                  {ticket.description}
+                                </Typography>
+                                {ticket.adminResponse && (
+                                  <Box sx={{ mt: 2, p: 2, bgcolor: '#e3f2fd', borderRadius: 1 }}>
+                                    <Typography variant="subtitle2" color="primary" gutterBottom>
+                                      <strong>Admin Response:</strong>
+                                    </Typography>
+                                    <Typography variant="body2">
+                                      {ticket.adminResponse}
+                                    </Typography>
+                                  </Box>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
                       ))}
                     </TableBody>
                   </Table>

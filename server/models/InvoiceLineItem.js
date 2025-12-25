@@ -1,9 +1,15 @@
+// DEPRECATED: This model is part of the complex billing system that's not being used
+// The app uses simpler models instead
+// Keeping this file for reference but commenting out to prevent collection creation
+
+/*
 const mongoose = require('mongoose');
 
 /**
  * Invoice Line Items Model
  * Individual line items within an invoice - immutable once invoice is finalized
  */
+/*
 const invoiceLineItemSchema = new mongoose.Schema({
   // Reference to the parent invoice
   invoice_id: {
@@ -371,4 +377,8 @@ invoiceLineItemSchema.pre('deleteOne', async function(next) {
   next();
 });
 
-module.exports = mongoose.model('InvoiceLineItem', invoiceLineItemSchema);
+// module.exports = mongoose.model('InvoiceLineItem', invoiceLineItemSchema);
+*/
+
+// Placeholder export to prevent import errors
+module.exports = {};

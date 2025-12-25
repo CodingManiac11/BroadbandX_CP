@@ -134,6 +134,17 @@ const SubscriptionsPage: React.FC = () => {
     return `₹${price.toFixed(2)}`;
   };
 
+  const calculateEndDate = (startDate: string, billingCycle: string) => {
+    const start = new Date(startDate);
+    const end = new Date(start);
+    if (billingCycle === 'yearly') {
+      end.setFullYear(end.getFullYear() + 1);
+    } else {
+      end.setMonth(end.getMonth() + 1);
+    }
+    return end;
+  };
+
   if (loading && subscriptions.length === 0) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
@@ -278,14 +289,16 @@ const SubscriptionsPage: React.FC = () => {
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2" fontWeight="bold">
-                    {formatPrice(subscription.pricing?.finalPrice || subscription.pricing?.totalAmount || 0)}
+                    {formatPrice(subscription.plan?.pricing?.monthly || subscription.pricing?.totalAmount || 0)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
                     /{subscription.billingCycle || 'monthly'}
                   </Typography>
                 </TableCell>
                 <TableCell>{formatDate(subscription.startDate)}</TableCell>
-                <TableCell>{formatDate(subscription.endDate)}</TableCell>
+                <TableCell>
+                  {formatDate(calculateEndDate(subscription.startDate, subscription.billingCycle || 'monthly').toISOString())}
+                </TableCell>
                 <TableCell>{formatDate(subscription.createdAt)}</TableCell>
               </TableRow>
             ))}

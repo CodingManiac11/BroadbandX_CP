@@ -15,6 +15,8 @@ export interface CustomerStats {
   averageSpeed: number;
   upcomingBills: number;
   supportTickets: number;
+  nextBillDate?: string;
+  amountDue?: number;
 }
 
 export interface UsageData {

@@ -27,12 +27,14 @@ router.use(authenticateToken);
 // Customer routes
 router.post('/', createSubscription);
 router.get('/my-subscriptions', getUserSubscriptions);
-router.get('/plan-history', getEnhancedPlanHistory); // Use enhanced version
-router.get('/plan-history-old', getPlanHistory); // Keep old version as backup
+// DISABLED: One-time purchase only - no plan history needed
+// router.get('/plan-history', getEnhancedPlanHistory);
+// router.get('/plan-history-old', getPlanHistory);
 router.get('/:id', ownerOrAdmin('user'), getSubscriptionById);
 router.put('/:id/cancel', ownerOrAdmin('user'), cancelSubscription);
-router.put('/:id/upgrade', ownerOrAdmin('user'), upgradePlan);
-router.put('/:id/downgrade', ownerOrAdmin('user'), downgradePlan);
+// DISABLED: One-time purchase only - no plan modifications
+// router.put('/:id/upgrade', ownerOrAdmin('user'), upgradePlan);
+// router.put('/:id/downgrade', ownerOrAdmin('user'), downgradePlan);
 router.put('/:id/renew', ownerOrAdmin('user'), renewSubscription);
 router.put('/:id/pause', ownerOrAdmin('user'), pauseSubscription);
 router.put('/:id/resume', ownerOrAdmin('user'), resumeSubscription);

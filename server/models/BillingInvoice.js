@@ -1,9 +1,15 @@
+// DEPRECATED: This model is not being used by the application
+// The app uses the simpler Billing.js model instead
+// Keeping this file for reference but commenting out to prevent collection creation
+
+/*
 const mongoose = require('mongoose');
 
 /**
  * Billing Invoices Model
  * Immutable invoices once finalized
  */
+/*
 const billingInvoiceSchema = new mongoose.Schema({
   // Reference to the subscription
   subscription_id: {
@@ -373,4 +379,8 @@ billingInvoiceSchema.pre('findOneAndUpdate', function(next) {
   next();
 });
 
-module.exports = mongoose.model('BillingInvoice', billingInvoiceSchema);
+// module.exports = mongoose.model('BillingInvoice', billingInvoiceSchema);
+*/
+
+// Use the simpler Billing model instead:
+module.exports = require('./Billing');

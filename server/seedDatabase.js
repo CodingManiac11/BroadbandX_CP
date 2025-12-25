@@ -22,6 +22,17 @@ const connectDB = async () => {
 // Sample data
 const samplePlans = [
   {
+    name: 'Basic Plan29',
+    description: 'Affordable broadband plan with all taxes included',
+    pricing: { monthly: 32.18, currency: 'INR' },
+    features: {
+      speed: { download: 50, upload: 10, unit: 'Mbps' },
+      dataLimit: { amount: 100, unit: 'GB', unlimited: false }
+    },
+    category: 'basic',
+    status: 'active'
+  },
+  {
     name: 'Basic Plan',
     description: 'Affordable broadband for basic usage',
     pricing: { monthly: 29.99, currency: 'INR' },

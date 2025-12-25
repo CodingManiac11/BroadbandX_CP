@@ -7,7 +7,7 @@ import { User, Subscription, DashboardStats } from '../types/index';
 import StatCard from '../components/StatCard';
 import UserManagementContainer from '../components/UserManagementContainer';
 import SubscriptionsPage from './SubscriptionsPage';
-import PlanRequestManagement from '../components/PlanRequestManagement';
+import FeedbackManagement from '../components/FeedbackManagement';
 
 // API Response type that matches what backend actually returns
 interface DashboardStatsResponse {
@@ -148,7 +148,7 @@ const AdminDashboard: React.FC = () => {
     { text: 'Dashboard', icon: <Icons.Dashboard />, section: 'dashboard' },
     { text: 'Users', icon: <Icons.People />, section: 'users' },
     { text: 'Subscriptions', icon: <Icons.Subscriptions />, section: 'subscriptions' },
-    { text: 'Plan Requests', icon: <Icons.Assignment />, section: 'plan-requests' },
+    { text: 'Support', icon: <Icons.Support />, section: 'support' },
     { text: 'AI Pricing', icon: <Icons.Psychology />, section: 'ai-pricing' },
     { text: 'Logout', icon: <Icons.ExitToApp />, section: 'logout' }
   ];
@@ -479,8 +479,8 @@ const AdminDashboard: React.FC = () => {
         return <UserManagementContainer onDataChange={refreshDashboardStats} />;
       case 'subscriptions':
         return <SubscriptionsPage />;
-      case 'plan-requests':
-        return <PlanRequestManagement />;
+      case 'support':
+        return <FeedbackManagement />;
       case 'ai-pricing':
         return renderAIPricing();
       default:

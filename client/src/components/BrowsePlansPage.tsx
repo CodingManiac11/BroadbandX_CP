@@ -92,6 +92,15 @@ const BrowsePlansPage: React.FC = () => {
     return `₹${price.toFixed(2)}`;
   };
 
+  const getDisplayPrice = (plan: any) => {
+    // For Basic Plan29, always show ₹32.18 as final price (inclusive of all taxes)
+    if (plan.name === 'Basic Plan29') {
+      return 32.18;
+    }
+    // For other plans, use their monthly pricing
+    return plan.pricing?.monthly || 0;
+  };
+
   const getCategoryColor = (category: string) => {
     switch (category?.toLowerCase()) {
       case 'residential': return '#2196f3';
@@ -182,11 +191,16 @@ const BrowsePlansPage: React.FC = () => {
                     {/* Price */}
                     <Box sx={{ mb: 2 }}>
                       <Typography variant="h4" component="span" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
-                        {formatPrice(plan.pricing?.monthly || 0)}
+                        {formatPrice(getDisplayPrice(plan))}
                       </Typography>
                       <Typography variant="body1" component="span" sx={{ color: 'text.secondary' }}>
                         /month
                       </Typography>
+                      {plan.name === 'Basic Plan29' && (
+                        <Typography variant="caption" display="block" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                          Final price (inclusive of all taxes)
+                        </Typography>
+                      )}
                     </Box>
 
                     {/* Speed Info */}

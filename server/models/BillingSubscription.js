@@ -1,9 +1,15 @@
+// DEPRECATED: This model is not being used by the application
+// The app uses the simpler Subscription.js model instead
+// Keeping this file for reference but commenting out to prevent collection creation
+
+/*
 const mongoose = require('mongoose');
 
 /**
  * Billing Subscriptions Model
  * Tracks customer subscriptions with billing cycle anchor and plan history
  */
+/*
 const billingSubscriptionSchema = new mongoose.Schema({
   // Reference to the user
   user_id: {
@@ -192,4 +198,8 @@ billingSubscriptionSchema.post('save', function(doc, next) {
   next();
 });
 
-module.exports = mongoose.model('BillingSubscription', billingSubscriptionSchema);
+// module.exports = mongoose.model('BillingSubscription', billingSubscriptionSchema);
+*/
+
+// Use the simpler Subscription model instead:
+module.exports = require('./Subscription');

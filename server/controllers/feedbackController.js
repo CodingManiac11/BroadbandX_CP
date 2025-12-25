@@ -1,4 +1,4 @@
-const asyncHandler = require('../middleware/async');
+const { asyncHandler } = require('../middleware/errorHandler');
 const ErrorResponse = require('../utils/errorResponse');
 const Feedback = require('../models/Feedback');
 const User = require('../models/User');
@@ -12,9 +12,14 @@ exports.submitFeedback = asyncHandler(async (req, res) => {
 
   // Get user's current subscription if not provided
   if (!req.body.subscription) {
-    const user = await User.findById(req.user.id).populate('activeSubscription');
-    if (user.activeSubscription) {
-      req.body.subscription = user.activeSubscription._id;
+    const Subscription = require('../models/Subscription');
+    const activeSubscription = await Subscription.findOne({
+      user: req.user.id,
+      status: 'active'
+    }).sort('-createdAt');
+    
+    if (activeSubscription) {
+      req.body.subscription = activeSubscription._id;
     }
   }
 
@@ -211,13 +216,20 @@ exports.updateFeedback = asyncHandler(async (req, res) => {
     };
     feedback.status = 'responded';
 
-    // Send notification email to user
-    const user = await User.findById(feedback.user);
-    await emailService.sendFeedbackResponse(user.email, {
-      customerName: user.firstName,
-      feedbackType: feedback.type,
-      response: req.body.response
-    });
+    // Send notification email to user (optional - don't fail if email fails)
+    try {
+      const user = await User.findById(feedback.user);
+      if (user && user.email) {
+        await emailService.sendFeedbackResponse(user.email, {
+          customerName: user.firstName,
+          feedbackType: feedback.type,
+          response: req.body.response
+        });
+      }
+    } catch (emailError) {
+      console.error('Failed to send email notification:', emailError.message);
+      // Continue without failing the request
+    }
   }
 
   // Update status if provided
@@ -253,5 +265,61 @@ exports.deleteFeedback = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: {}
+  });
+});
+
+// @desc    Get all feedback (admin only)
+// @route   GET /api/feedback
+// @access  Private/Admin
+exports.getAllFeedback = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = parseInt(req.query.limit, 10) || 10;
+  const startIndex = (page - 1) * limit;
+
+  // Build query
+  const query = {};
+  
+  if (req.query.type) {
+    query.type = req.query.type;
+  }
+
+  if (req.query.status) {
+    query.status = req.query.status;
+  }
+
+  if (req.query.sentiment) {
+    query.sentiment = req.query.sentiment;
+  }
+
+  if (req.query.minRating) {
+    query['rating.overall'] = { $gte: parseInt(req.query.minRating) };
+  }
+
+  if (req.query.search) {
+    query.$or = [
+      { comment: { $regex: req.query.search, $options: 'i' } },
+      { 'response.content': { $regex: req.query.search, $options: 'i' } }
+    ];
+  }
+
+  const feedback = await Feedback.find(query)
+    .sort('-createdAt')
+    .skip(startIndex)
+    .limit(limit)
+    .populate('user', 'firstName lastName email')
+    .populate('subscription', 'plan');
+
+  const total = await Feedback.countDocuments(query);
+
+  res.status(200).json({
+    success: true,
+    count: feedback.length,
+    pagination: {
+      page,
+      pages: Math.ceil(total / limit),
+      total,
+      limit
+    },
+    data: feedback
   });
 });
