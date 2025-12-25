@@ -160,6 +160,7 @@ router.get('/invoice/:invoiceId', async (req, res) => {
     
     try {
       const Subscription = require('../models/Subscription');
+      const Payment = require('../models/Payment');
       const User = require('../models/User');
       const mongoose = require('mongoose');
       
@@ -179,7 +180,7 @@ router.get('/invoice/:invoiceId', async (req, res) => {
       
       console.log(`📄 Query object:`, JSON.stringify(query));
       
-      // Find the user's active subscription with payment history
+      // Find the user's active subscription
       const subscription = await Subscription.findOne(query)
         .populate('plan')
         .populate('user')
@@ -193,55 +194,83 @@ router.get('/invoice/:invoiceId', async (req, res) => {
         price: subscription.pricing?.totalAmount
       } : 'none');
       
-      if (subscription && subscription.paymentHistory && subscription.paymentHistory.length > 0) {
-        const payment = subscription.paymentHistory[0];
-        const planName = subscription.plan?.name || subscription.planName || 'Subscription';
-        // Use Plan's actual pricing first (correct price), fallback to subscription pricing if plan not populated
-        const planPrice = subscription.plan?.pricing?.monthly || subscription.pricing?.totalAmount || 0;
+      if (subscription) {
+        // Find payment for this subscription
+        const payment = await Payment.findOne({ 
+          subscription: subscription._id,
+          status: { $in: ['captured', 'authorized'] }
+        }).sort({ createdAt: -1 }).limit(1);
         
-        // Calculate proper billing cycle dates
-        const startDate = new Date(subscription.startDate || subscription.createdAt);
-        const endDate = new Date(startDate);
-        if (subscription.billingCycle === 'yearly') {
-          endDate.setFullYear(endDate.getFullYear() + 1);
-        } else {
-          endDate.setMonth(endDate.getMonth() + 1);
-        }
+        console.log(`📄 Found payment:`, payment ? {
+          id: payment._id,
+          razorpayPaymentId: payment.razorpayPaymentId,
+          method: payment.method,
+          amount: payment.amount,
+          status: payment.status
+        } : 'none');
         
-        invoice = {
-          id: req.params.invoiceId,
-          invoiceNumber: `INV-${String(1).padStart(3, '0')}`,
-          amount: planPrice,
-          status: payment.status === 'completed' ? 'Paid' : 'Pending',
-          createdAt: payment.date || subscription.createdAt,
-          dueDate: endDate,
-          billingPeriod: {
-            start: startDate,
-            end: endDate
-          },
-          user: {
-            firstName: subscription.user?.firstName || 'Customer',
-            lastName: subscription.user?.lastName || '',
-            email: subscription.user?.email || 'customer@example.com'
-          },
-          subtotal: planPrice,
-          tax: 0,
-          total: planPrice,
-          items: [
-            { 
-              description: `${planName} ${subscription.billingCycle === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`, 
-              quantity: 1, 
-              amount: planPrice 
+        if (payment) {
+          const planName = subscription.plan?.name || subscription.planName || 'Subscription';
+          // Use Plan's actual pricing first (correct price), fallback to subscription pricing if plan not populated
+          const planPrice = subscription.plan?.pricing?.monthly || subscription.pricing?.totalAmount || payment.amount || 0;
+          
+          // Calculate proper billing cycle dates
+          const startDate = new Date(subscription.startDate || subscription.createdAt);
+          const endDate = new Date(startDate);
+          if (subscription.billingCycle === 'yearly') {
+            endDate.setFullYear(endDate.getFullYear() + 1);
+          } else {
+            endDate.setMonth(endDate.getMonth() + 1);
+          }
+          
+          // Map payment method for display
+          const paymentMethodDisplay = payment.method || 'Razorpay';
+          const paymentGateway = 'Razorpay Payment Gateway';
+          
+          invoice = {
+            id: req.params.invoiceId,
+            invoiceNumber: `INV-${String(1).padStart(3, '0')}`,
+            amount: planPrice,
+            status: payment.status === 'captured' || payment.status === 'authorized' ? 'Paid' : 'Pending',
+            createdAt: payment.capturedAt || payment.createdAt || subscription.createdAt,
+            dueDate: endDate,
+            billingPeriod: {
+              start: startDate,
+              end: endDate
+            },
+            user: {
+              firstName: subscription.user?.firstName || 'Customer',
+              lastName: subscription.user?.lastName || '',
+              email: subscription.user?.email || 'customer@example.com'
+            },
+            subtotal: planPrice,
+            tax: 0,
+            total: planPrice,
+            items: [
+              { 
+                description: `${planName} ${subscription.billingCycle === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`, 
+                quantity: 1, 
+                amount: planPrice 
+              }
+            ],
+            paymentDate: payment.capturedAt || payment.createdAt,
+            transactionId: payment.razorpayPaymentId || payment._id.toString(),
+            paymentId: payment._id.toString(),
+            razorpayOrderId: payment.razorpayOrderId,
+            razorpayPaymentId: payment.razorpayPaymentId,
+            paymentMethod: {
+              type: paymentMethodDisplay,
+              gateway: paymentGateway,
+              details: payment.cardLast4 ? `****${payment.cardLast4}` : (payment.vpa || 'Online Payment')
             }
-          ],
-          paymentDate: payment.status === 'completed' ? payment.date : null,
-          transactionId: payment.status === 'completed' ? payment.transactionId : null,
-          paymentMethod: payment.paymentMethod ? { type: payment.paymentMethod } : null
-        };
-        
-        console.log(`📄 ✅ Generated invoice from actual subscription data for ${planName}`);
+          };
+          
+          console.log(`📄 ✅ Generated invoice from actual subscription data for ${planName}`);
+        } else {
+          console.log(`📄 ⚠️ No payment found for subscription`);
+        }
       } else {
-        console.log(`📄 ⚠️ No subscription found or no payment history`);
+        console.log(`📄 ⚠️ No subscription found`);
       }
     } catch (dbError) {
       console.log(`📄 ⚠️ Could not fetch from database:`, dbError.message);
@@ -283,6 +312,9 @@ router.get('/invoice/:invoiceId', async (req, res) => {
     // Check if client wants HTML or PDF
     const acceptHeader = req.headers.accept || '';
     const wantsPDF = req.query.format === 'pdf' || acceptHeader.includes('application/pdf');
+    
+    // Set CSP header using both hashes
+    res.setHeader('Content-Security-Policy', "script-src 'self' 'sha256-JNEiJlItUNiAlsfJVS0RFOLQkr1ujMiUcTFLtccbJ4k=' 'sha256-6+HSeLxGbn7ayQLil7E1Whq7ey5zPTDuE0a0KEfz7Us='; style-src 'self' 'unsafe-inline'");
     
     if (wantsPDF) {
       // For now, return HTML that can be printed to PDF
@@ -442,9 +474,13 @@ function generateInvoiceHTML(invoice) {
             cursor: pointer;
             font-size: 14px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 9999;
         }
         .print-button:hover {
             background: #1565c0;
+        }
+        .print-button:active {
+            transform: scale(0.98);
         }
         @media print {
             body { margin: 0; }
@@ -453,7 +489,7 @@ function generateInvoiceHTML(invoice) {
     </style>
 </head>
 <body>
-    <button class="print-button" onclick="window.print()">Print / Save as PDF</button>
+    <button class="print-button" id="printBtn">Print / Save as PDF</button>
     
     <div class="header">
         <div class="company-info">
@@ -544,12 +580,20 @@ function generateInvoiceHTML(invoice) {
 
     <div style="clear: both;"></div>
     
-    ${invoice.status === 'paid' ? `
+    ${invoice.status.toLowerCase() === 'paid' || invoice.paymentDate ? `
     <div class="payment-info">
         <h4>Payment Information</h4>
-        <strong>Payment Date:</strong> ${invoice.paymentDate ? new Date(invoice.paymentDate).toLocaleDateString('en-IN') : 'N/A'}<br>
-        <strong>Transaction ID:</strong> ${invoice.transactionId || 'N/A'}<br>
-        <strong>Payment Method:</strong> ${invoice.paymentMethod?.type || 'Credit Card'} ${invoice.paymentMethod?.last4 ? `ending in ${invoice.paymentMethod.last4}` : ''}
+        <strong>Payment Status:</strong> ${invoice.status}<br>
+        ${invoice.paymentDate ? `<strong>Payment Date:</strong> ${new Date(invoice.paymentDate).toLocaleString('en-IN')}<br>` : ''}
+        ${invoice.paymentId ? `<strong>Payment ID:</strong> ${invoice.paymentId}<br>` : ''}
+        ${invoice.razorpayOrderId ? `<strong>Razorpay Order ID:</strong> ${invoice.razorpayOrderId}<br>` : ''}
+        ${invoice.razorpayPaymentId ? `<strong>Razorpay Payment ID:</strong> ${invoice.razorpayPaymentId}<br>` : ''}
+        ${invoice.transactionId ? `<strong>Transaction ID:</strong> ${invoice.transactionId}<br>` : ''}
+        ${invoice.paymentMethod ? `
+          <strong>Payment Method:</strong> ${invoice.paymentMethod.type || invoice.paymentMethod}<br>
+          ${invoice.paymentMethod.gateway ? `<strong>Payment Gateway:</strong> ${invoice.paymentMethod.gateway}<br>` : ''}
+          ${invoice.paymentMethod.details ? `<strong>Payment Details:</strong> ${invoice.paymentMethod.details}<br>` : ''}
+        ` : ''}
     </div>
     ` : ''}
     
@@ -564,6 +608,15 @@ function generateInvoiceHTML(invoice) {
         <p><strong>Thank you for your business!</strong></p>
         <p><small>This invoice was generated electronically. For questions, please contact customer support at billing@broadbandx.com</small></p>
     </div>
+    
+    <script>
+        const printBtn = document.getElementById('printBtn');
+        if (printBtn) {
+            printBtn.addEventListener('click', function() {
+                window.print();
+            });
+        }
+    </script>
 </body>
 </html>
   `;

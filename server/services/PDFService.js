@@ -296,14 +296,42 @@ class PDFService {
        .fillColor('#7f8c8d')
        .text(`Status: ${invoice.status}`, 50, yPos);
     
-    if (invoice.paid_at) {
+    if (invoice.paid_at || invoice.paymentDate) {
       yPos += 15;
-      doc.text(`Paid Date: ${invoice.paid_at.toLocaleDateString()}`, 50, yPos);
+      const paidDate = invoice.paid_at || invoice.paymentDate;
+      doc.text(`Paid Date: ${new Date(paidDate).toLocaleDateString()}`, 50, yPos);
     }
     
-    if (invoice.payment_reference) {
+    if (invoice.payment_reference || invoice.transactionId) {
       yPos += 15;
-      doc.text(`Payment Reference: ${invoice.payment_reference}`, 50, yPos);
+      doc.text(`Transaction ID: ${invoice.payment_reference || invoice.transactionId}`, 50, yPos);
+    }
+    
+    if (invoice.paymentId) {
+      yPos += 15;
+      doc.text(`Payment ID: ${invoice.paymentId}`, 50, yPos);
+    }
+    
+    if (invoice.razorpayOrderId) {
+      yPos += 15;
+      doc.text(`Razorpay Order ID: ${invoice.razorpayOrderId}`, 50, yPos);
+    }
+    
+    if (invoice.razorpayPaymentId) {
+      yPos += 15;
+      doc.text(`Razorpay Payment ID: ${invoice.razorpayPaymentId}`, 50, yPos);
+    }
+    
+    if (invoice.paymentMethod) {
+      yPos += 15;
+      const method = invoice.paymentMethod.type || invoice.paymentMethod;
+      const gateway = invoice.paymentMethod.gateway || 'Razorpay';
+      doc.text(`Payment Method: ${method} (${gateway})`, 50, yPos);
+      
+      if (invoice.paymentMethod.details) {
+        yPos += 15;
+        doc.text(`Payment Details: ${invoice.paymentMethod.details}`, 50, yPos);
+      }
     }
     
     yPos += 25;
@@ -314,7 +342,7 @@ class PDFService {
     yPos += 15;
     doc.fontSize(9)
        .fillColor('#7f8c8d')
-       .text(invoice.payment_terms || 'Payment due within 30 days of invoice date', 50, yPos, { width: 500 });
+       .text(invoice.payment_terms || 'Payment processed via Razorpay secure payment gateway', 50, yPos, { width: 500 });
     
     return doc;
   }

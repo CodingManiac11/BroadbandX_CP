@@ -58,7 +58,7 @@ import { useRealtime } from '../contexts/RealtimeContext';
 import webSocketService from '../services/webSocketService';
 import { customerService, CustomerStats, BillingHistory } from '../services/customerService';
 import { Plan, Subscription } from '../types/index';
-import UPIPaymentForm from '../components/UPIPaymentForm';
+import RazorpayPaymentForm from '../components/RazorpayPaymentForm';
 import { Modal, ModalBody } from '../components/Modal';
 
 const CustomerDashboard: React.FC = () => {
@@ -957,7 +957,7 @@ const CustomerDashboard: React.FC = () => {
           size="lg"
         >
           <ModalBody>
-            <UPIPaymentForm
+            <RazorpayPaymentForm
               plan={selectedPlan}
               onSuccess={handlePaymentSuccess}
               onCancel={() => setShowPaymentModal(false)}
