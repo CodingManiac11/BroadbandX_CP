@@ -8,6 +8,7 @@ const BillingInvoice = require('../models/BillingInvoice');
 const InvoiceLineItem = require('../models/InvoiceLineItem');
 const { authenticateToken } = require('../middleware/auth');
 const { body, param, query, validationResult } = require('express-validator');
+const { invoicesToCSV } = require('../utils/csvExport');
 
 /**
  * Middleware to handle validation errors
@@ -671,6 +672,58 @@ router.post('/process-refund', authenticateToken, processRefund);
 router.post('/create-upgrade-scenario', authenticateToken, createUpgradeScenario);
 router.post('/process-upgrade-payment/:invoiceId', authenticateToken, processUpgradePayment);
 router.get('/invoices/:userId', authenticateToken, getUserInvoices);
+
+/**
+ * GET /api/billing/invoices/export/csv
+ * Export invoices as CSV
+ */
+router.get('/invoices/export/csv', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const isAdmin = req.user.role === 'admin';
+
+    // Build query based on user role
+    let query = {};
+    if (!isAdmin) {
+      query = { user: userId };
+    }
+
+    // Get invoices with populated fields
+    const Payment = require('../models/BillingInvoice');
+    const invoices = await Payment.find(query)
+      .populate('user', 'firstName lastName email')
+      .populate({
+        path: 'subscription',
+        populate: { path: 'plan', select: 'name' }
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (invoices.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No invoices found'
+      });
+    }
+
+    // Convert to CSV
+    const csv = invoicesToCSV(invoices);
+
+    // Set headers for CSV download
+    const filename = `invoices_${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    res.send(csv);
+  } catch (error) {
+    console.error('Error exporting invoices to CSV:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to export invoices',
+      error: error.message
+    });
+  }
+});
 
 // Payment completion endpoint
 router.post('/complete-payment', async (req, res) => {

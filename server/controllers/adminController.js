@@ -64,8 +64,24 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     customerSince: { $gte: lastMonth, $lt: startOfMonth }
   });
 
-  const userGrowthRate = lastMonthUsers > 0 ? 
-    ((newUsersThisMonth - lastMonthUsers) / lastMonthUsers * 100) : 0;
+  // Calculate user growth rate more accurately
+  let userGrowthRate = 0;
+  if (lastMonthUsers > 0) {
+    userGrowthRate = ((newUsersThisMonth - lastMonthUsers) / lastMonthUsers * 100);
+  } else if (newUsersThisMonth > 0) {
+    userGrowthRate = 100; // 100% growth if we had 0 last month and have users this month
+  }
+
+  // Get total customers for better context
+  const previousMonthCustomers = await User.countDocuments({
+    role: 'customer',
+    customerSince: { $lt: startOfMonth }
+  });
+  
+  // If we have no new users this month but had users before, calculate based on total base
+  if (newUsersThisMonth === 0 && previousMonthCustomers > 0 && lastMonthUsers === 0) {
+    userGrowthRate = 0; // No change if no users this month or last month
+  }
 
   // Get subscription distribution
   const subscriptionsByStatus = await Subscription.aggregate([
@@ -110,6 +126,31 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     }
   ]);
 
+  // Get real-time usage statistics
+  const UsageLog = require('../models/UsageLog');
+  const usageStats = await UsageLog.aggregate([
+    {
+      $match: {
+        timestamp: { $gte: startOfMonth }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        totalDownload: { $sum: '$download' },
+        totalUpload: { $sum: '$upload' },
+        totalSessions: { $sum: 1 },
+        activeUsers: { $addToSet: '$userId' }
+      }
+    }
+  ]);
+
+  const totalUsageGB = usageStats.length > 0 
+    ? ((usageStats[0].totalDownload + usageStats[0].totalUpload) / (1024 * 1024 * 1024)).toFixed(2)
+    : 0;
+  const activeUsersCount = usageStats.length > 0 ? usageStats[0].activeUsers.length : 0;
+  const totalSessions = usageStats.length > 0 ? usageStats[0].totalSessions : 0;
+
   res.status(200).json({
     status: 'success',
     data: {
@@ -125,7 +166,12 @@ const getDashboardStats = asyncHandler(async (req, res) => {
       subscriptionsByStatus,
       popularPlansThisMonth,
       recentUsers: [], // TODO: Add recent users query
-      recentSubscriptions: [] // TODO: Add recent subscriptions query
+      recentSubscriptions: [], // TODO: Add recent subscriptions query
+      // Real-time usage statistics
+      totalUsageGB: parseFloat(totalUsageGB),
+      activeUsersCount,
+      totalSessions,
+      avgUsagePerUser: activeUsersCount > 0 ? parseFloat((parseFloat(totalUsageGB) / activeUsersCount).toFixed(2)) : 0
     }
   });
 });

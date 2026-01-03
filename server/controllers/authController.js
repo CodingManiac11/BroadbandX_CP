@@ -2,6 +2,7 @@ const User = require('../models/User');
 const { generateToken, generateRefreshToken, verifyRefreshToken } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { dbOperation } = require('../middleware/dbHealthCheck');
+const emailService = require('../services/emailService');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
@@ -47,6 +48,17 @@ const register = asyncHandler(async (req, res) => {
 
   // Remove password from response
   user.password = undefined;
+
+  // Send welcome email (non-blocking)
+  try {
+    await emailService.sendWelcomeEmail(user.email, {
+      name: `${user.firstName} ${user.lastName}`,
+      userId: user._id
+    });
+  } catch (emailError) {
+    console.log('Failed to send welcome email:', emailError.message);
+    // Don't fail registration if email fails
+  }
 
   res.status(201).json({
     status: 'success',
@@ -239,13 +251,31 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
   await user.save({ validateBeforeSave: false });
 
-  // In production, send email with reset link
-  // For now, return the token (don't do this in production!)
-  res.status(200).json({
-    status: 'success',
-    message: 'Password reset token sent to email',
-    resetToken // Remove this in production
-  });
+  // Send password reset email
+  const resetURL = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+  
+  try {
+    await emailService.sendPasswordResetEmail(user.email, {
+      name: `${user.firstName} ${user.lastName}`,
+      resetURL,
+      expiresIn: '10 minutes'
+    });
+    
+    res.status(200).json({
+      status: 'success',
+      message: 'Password reset link sent to your email'
+    });
+  } catch (emailError) {
+    console.error('Failed to send password reset email:', emailError);
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+    
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to send password reset email. Please try again later.'
+    });
+  }
 });
 
 // @desc    Reset password

@@ -24,6 +24,11 @@ interface DashboardStatsResponse {
   popularPlansThisMonth: any[];
   recentUsers: any[];
   recentSubscriptions: any[];
+  // Real-time usage statistics
+  totalUsageGB?: number;
+  activeUsersCount?: number;
+  totalSessions?: number;
+  avgUsagePerUser?: number;
 }
 
 const AdminDashboard: React.FC = () => {
@@ -38,7 +43,11 @@ const AdminDashboard: React.FC = () => {
     monthlyRevenue: 0,
     newUsersThisMonth: 0,
     expiringSoon: 0,
-    userGrowthRate: 0
+    userGrowthRate: 0,
+    totalUsageGB: 0,
+    activeUsersCount: 0,
+    totalSessions: 0,
+    avgUsagePerUser: 0
   });
   const [users, setUsers] = useState<User[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -63,7 +72,11 @@ const AdminDashboard: React.FC = () => {
         monthlyRevenue: stats.monthlyRevenue || 0,
         newUsersThisMonth: stats.newUsersThisMonth || 0,
         expiringSoon: stats.expiringSoon || 0,
-        userGrowthRate: stats.userGrowthRate || 0
+        userGrowthRate: stats.userGrowthRate || 0,
+        totalUsageGB: stats.totalUsageGB || 0,
+        activeUsersCount: stats.activeUsersCount || 0,
+        totalSessions: stats.totalSessions || 0,
+        avgUsagePerUser: stats.avgUsagePerUser || 0
       });
 
       // Fetch initial users (for the Users section)
@@ -98,7 +111,11 @@ const AdminDashboard: React.FC = () => {
         monthlyRevenue: stats.monthlyRevenue || 0,
         newUsersThisMonth: stats.newUsersThisMonth || 0,
         expiringSoon: stats.expiringSoon || 0,
-        userGrowthRate: stats.userGrowthRate || 0
+        userGrowthRate: stats.userGrowthRate || 0,
+        totalUsageGB: stats.totalUsageGB || 0,
+        activeUsersCount: stats.activeUsersCount || 0,
+        totalSessions: stats.totalSessions || 0,
+        avgUsagePerUser: stats.avgUsagePerUser || 0
       });
     } catch (err) {
       console.error('Failed to refresh dashboard stats:', err);
@@ -107,6 +124,13 @@ const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchDashboardData();
+    
+    // Auto-refresh dashboard stats every 30 seconds
+    const refreshInterval = setInterval(() => {
+      refreshDashboardStats();
+    }, 30000);
+    
+    return () => clearInterval(refreshInterval);
   }, [fetchDashboardData]);
 
   const handleSectionChange = (section: string) => {
@@ -245,7 +269,7 @@ const AdminDashboard: React.FC = () => {
         <MUI.Box>
           <StatCard
             title="Total Revenue"
-            value={`$${(dashboardData.totalRevenue || 0).toLocaleString()}`}
+            value={`₹${(dashboardData.totalRevenue || 0).toLocaleString()}`}
             icon={<Icons.AttachMoney />}
             color="info"
           />
@@ -253,7 +277,54 @@ const AdminDashboard: React.FC = () => {
         <MUI.Box>
           <StatCard
             title="Monthly Revenue"
-            value={`$${(dashboardData.monthlyRevenue || 0).toLocaleString()}`}
+            value={`₹${(dashboardData.monthlyRevenue || 0).toLocaleString()}`}
+            icon={<Icons.TrendingUp />}
+            color="warning"
+          />
+        </MUI.Box>
+      </MUI.Box>
+
+      {/* Real-Time Usage Stats */}
+      <MUI.Typography variant="h5" sx={{ mb: 3, mt: 4, fontWeight: 'bold' }}>
+        Real-Time Usage Statistics
+      </MUI.Typography>
+      
+      <MUI.Box 
+        sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' },
+          gap: 3,
+          mb: 4 
+        }}
+      >
+        <MUI.Box>
+          <StatCard
+            title="Total Usage"
+            value={`${(dashboardData.totalUsageGB || 0).toFixed(2)} GB`}
+            icon={<Icons.DataUsage />}
+            color="primary"
+          />
+        </MUI.Box>
+        <MUI.Box>
+          <StatCard
+            title="Active Users"
+            value={dashboardData.activeUsersCount || 0}
+            icon={<Icons.People />}
+            color="success"
+          />
+        </MUI.Box>
+        <MUI.Box>
+          <StatCard
+            title="Total Sessions"
+            value={dashboardData.totalSessions || 0}
+            icon={<Icons.Timeline />}
+            color="info"
+          />
+        </MUI.Box>
+        <MUI.Box>
+          <StatCard
+            title="Avg Usage/User"
+            value={`${Number(dashboardData.avgUsagePerUser || 0).toFixed(2)} GB`}
             icon={<Icons.TrendingUp />}
             color="warning"
           />
@@ -276,19 +347,52 @@ const AdminDashboard: React.FC = () => {
               <MUI.ListItem>
                 <MUI.ListItemText 
                   primary="New Users This Month" 
-                  secondary={dashboardData.newUsersThisMonth} 
+                  secondary={
+                    <MUI.Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <MUI.Typography variant="h6" component="span">
+                        {dashboardData.newUsersThisMonth}
+                      </MUI.Typography>
+                      <MUI.Typography variant="body2" color="text.secondary">
+                        new customers
+                      </MUI.Typography>
+                    </MUI.Box>
+                  } 
                 />
               </MUI.ListItem>
               <MUI.ListItem>
                 <MUI.ListItemText 
                   primary="User Growth Rate" 
-                  secondary={`${(dashboardData.userGrowthRate || 0).toFixed(1)}%`} 
+                  secondary={
+                    <MUI.Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <MUI.Typography 
+                        variant="h6" 
+                        component="span"
+                        sx={{ 
+                          color: (dashboardData.userGrowthRate || 0) >= 0 ? 'success.main' : 'error.main' 
+                        }}
+                      >
+                        {(dashboardData.userGrowthRate || 0) >= 0 ? '+' : ''}{(dashboardData.userGrowthRate || 0).toFixed(1)}%
+                      </MUI.Typography>
+                      <MUI.Typography variant="body2" color="text.secondary">
+                        vs last month
+                      </MUI.Typography>
+                    </MUI.Box>
+                  } 
                 />
               </MUI.ListItem>
               <MUI.ListItem>
                 <MUI.ListItemText 
                   primary="Expiring Soon" 
-                  secondary={dashboardData.expiringSoon} 
+                  secondary={
+                    <MUI.Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <MUI.Typography variant="h6" component="span">
+                        {dashboardData.expiringSoon}
+                      </MUI.Typography>
+                      <MUI.Typography variant="body2" color="text.secondary">
+                        in next 7 days
+                      </MUI.Typography>
+                    </MUI.Box>
+                  } 
                 />
               </MUI.ListItem>
             </MUI.List>
@@ -324,6 +428,65 @@ const AdminDashboard: React.FC = () => {
                 fullWidth
               >
                 AI Pricing
+              </MUI.Button>
+              <MUI.Divider sx={{ my: 1 }} />
+              <MUI.Button
+                variant="outlined"
+                color="secondary"
+                startIcon={<Icons.Download />}
+                onClick={async () => {
+                  try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch(
+                      'http://localhost:5001/api/usage/export/csv',
+                      {
+                        headers: { Authorization: `Bearer ${token}` }
+                      }
+                    );
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.setAttribute('download', `all_usage_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                  } catch (error) {
+                    console.error('Failed to export usage:', error);
+                  }
+                }}
+                fullWidth
+              >
+                Export All Usage
+              </MUI.Button>
+              <MUI.Button
+                variant="outlined"
+                color="secondary"
+                startIcon={<Icons.Download />}
+                onClick={async () => {
+                  try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch(
+                      'http://localhost:5001/api/billing/invoices/export/csv',
+                      {
+                        headers: { Authorization: `Bearer ${token}` }
+                      }
+                    );
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.setAttribute('download', `all_invoices_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                  } catch (error) {
+                    console.error('Failed to export invoices:', error);
+                  }
+                }}
+                fullWidth
+              >
+                Export All Invoices
               </MUI.Button>
             </MUI.Stack>
           </MUI.Card>

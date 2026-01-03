@@ -13,7 +13,7 @@ import {
   CircularProgress,
   Link as MuiLink,
 } from '@mui/material';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 interface TabPanelProps {
@@ -232,6 +232,11 @@ const LoginPage: React.FC = () => {
                 >
                   {loading ? <CircularProgress size={24} /> : 'Sign In as Customer'}
                 </Button>
+                <Box sx={{ textAlign: 'center', mt: 1 }}>
+                  <MuiLink component={RouterLink} to="/forgot-password" variant="body2">
+                    Forgot Password?
+                  </MuiLink>
+                </Box>
               </form>
             </TabPanel>
 
@@ -277,17 +282,17 @@ const LoginPage: React.FC = () => {
             <Box sx={{ textAlign: 'center', mt: 3 }}>
               <Typography variant="body2" color="text.secondary">
                 Don't have an account?{' '}
-                <MuiLink component={Link} to="/register" underline="hover">
+                <MuiLink component={RouterLink} to="/register" underline="hover">
                   Sign up here
                 </MuiLink>
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                <MuiLink component={Link} to="/forgot-password" underline="hover">
+                <MuiLink component={RouterLink} to="/forgot-password" underline="hover">
                   Forgot your password?
                 </MuiLink>
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                <MuiLink component={Link} to="/" underline="hover">
+                <MuiLink component={RouterLink} to="/" underline="hover">
                   ← Back to Home
                 </MuiLink>
               </Typography>

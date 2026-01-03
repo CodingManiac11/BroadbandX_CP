@@ -228,8 +228,8 @@ app.use('/api/billing', require('./routes/billing'));
 app.use('/api/pdf', require('./routes/pdf')); // Add PDF routes
 app.use('/api/feedback', require('./routes/feedback')); // Add feedback/support routes
 app.use('/api/razorpay', require('./routes/razorpay')); // Razorpay payment gateway
-app.use('/api/usage-tracking', require('./routes/usageTracking')); // Usage tracking
-app.use('/api/billing-reminders', require('./routes/billingReminders')); // Billing reminders
+app.use('/api/usage', authenticateToken, require('./routes/usage')); // Usage tracking
+app.use('/api/notifications', authenticateToken, require('./routes/notificationRoutes')); // Notifications
 // app.use('/api/payments', require('./routes/payments')); // Disabled - using UPI payments via customer routes
 // app.use('/api/analytics', authenticateToken, analyticsRoutes);
 app.use('/api/recommendations', authenticateToken, recommendationRoutes);

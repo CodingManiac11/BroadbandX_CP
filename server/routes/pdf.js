@@ -48,7 +48,8 @@ router.get('/invoice/:invoiceId/download', [
     }
     
     // Check ownership
-    if (invoice.subscription_id.customer_id._id.toString() !== req.user.id) {
+    const userId = req.user._id || req.user.id;
+    if (invoice.subscription_id.customer_id._id.toString() !== userId.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
@@ -115,7 +116,8 @@ router.get('/invoice/:invoiceId/preview', [
     }
     
     // Check ownership
-    if (invoice.subscription_id.customer_id._id.toString() !== req.user.id) {
+    const userId = req.user._id || req.user.id;
+    if (invoice.subscription_id.customer_id._id.toString() !== userId.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
@@ -227,9 +229,12 @@ router.get('/invoice/:invoiceId', async (req, res) => {
           const paymentMethodDisplay = payment.method || 'Razorpay';
           const paymentGateway = 'Razorpay Payment Gateway';
           
+          // Generate invoice number from payment/subscription ID
+          const invoiceNumber = payment.invoiceNumber || `INV-${payment._id.toString().slice(-8).toUpperCase()}`;
+          
           invoice = {
             id: req.params.invoiceId,
-            invoiceNumber: `INV-${String(1).padStart(3, '0')}`,
+            invoiceNumber: invoiceNumber,
             amount: planPrice,
             status: payment.status === 'captured' || payment.status === 'authorized' ? 'Paid' : 'Pending',
             createdAt: payment.capturedAt || payment.createdAt || subscription.createdAt,

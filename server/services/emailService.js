@@ -123,6 +123,25 @@ const EMAIL_TEMPLATES = {
       <p>If you have any additional comments or concerns, please don't hesitate to reach out to our support team.</p>
     `,
   },
+  PASSWORD_RESET: {
+    subject: 'Password Reset Request - BroadbandX',
+    template: (data) => `
+      <h2>Password Reset Request</h2>
+      <p>Dear ${data.name},</p>
+      <p>We received a request to reset your password for your BroadbandX account. Click the button below to reset it:</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${data.resetURL}" style="background-color: #3B82F6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px;">
+          Reset Password
+        </a>
+      </div>
+      <p>This link will expire in ${data.expiresIn}.</p>
+      <p><strong>If you didn't request this password reset, please ignore this email.</strong></p>
+      <p style="color: #666; font-size: 12px; margin-top: 30px;">
+        If the button doesn't work, copy and paste this link into your browser:<br/>
+        ${data.resetURL}
+      </p>
+    `,
+  },
 };
 
 /**
@@ -185,6 +204,10 @@ const sendFeedbackResponse = async (to, data) => {
   return sendTemplatedEmail(to, 'FEEDBACK_RESPONSE', data);
 };
 
+const sendPasswordResetEmail = async (to, data) => {
+  return sendTemplatedEmail(to, 'PASSWORD_RESET', data);
+};
+
 module.exports = {
   sendPaymentReminder,
   sendServiceUpdate,
@@ -192,5 +215,6 @@ module.exports = {
   sendWelcomeEmail,
   sendTicketUpdate,
   sendFeedbackRequest,
-  sendFeedbackResponse
+  sendFeedbackResponse,
+  sendPasswordResetEmail
 };

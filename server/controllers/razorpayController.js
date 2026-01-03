@@ -205,8 +205,59 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
           taxAmount: 0,
           totalAmount: plan.pricing.monthly
         },
-        activatedAt: new Date()
+        activatedAt: new Date(),
+        paymentHistory: [{
+          date: new Date(),
+          amount: payment.amount,
+          paymentMethod: payment.method || 'razorpay',
+          transactionId: razorpay_payment_id,
+          status: 'completed',
+          invoiceNumber: `INV-${Date.now()}`,
+          notes: `Initial payment for ${plan.name}`
+        }]
       });
+      
+      // Generate initial usage data for the new subscription
+      console.log('📊 Generating initial usage data for new subscription...');
+      const UsageLog = require('../models/UsageLog');
+      const usageLogs = [];
+      const now = new Date();
+      
+      // Generate usage for the past 7 days (or since subscription start if less than 7 days)
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(now);
+        date.setDate(date.getDate() - i);
+        
+        // Only generate data from subscription start date onwards
+        if (date >= startDate) {
+          date.setHours(12, 0, 0, 0);
+          
+          // Random realistic usage between 0.5-3 GB per day
+          const downloadBytes = (Math.random() * 2.5 + 0.5) * 1024 * 1024 * 1024; // 0.5-3 GB
+          const uploadBytes = (Math.random() * 0.4 + 0.1) * 1024 * 1024 * 1024; // 0.1-0.5 GB
+          
+          usageLogs.push({
+            userId: payment.user,
+            deviceId: `device-${payment.user.toString().slice(-6)}`,
+            deviceType: ['Desktop', 'Mobile', 'Tablet'][Math.floor(Math.random() * 3)],
+            ipAddress: `192.168.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
+            timestamp: date,
+            download: downloadBytes,
+            upload: uploadBytes,
+            downloadSpeed: plan.features?.speed?.download || 25, // Use plan speed or default
+            uploadSpeed: plan.features?.speed?.upload || 5,
+            latency: Math.random() * 20 + 10, // 10-30ms
+            packetLoss: Math.random() * 2, // 0-2%
+            sessionDuration: Math.floor(Math.random() * 120 + 30) // 30-150 minutes
+          });
+        }
+      }
+      
+      if (usageLogs.length > 0) {
+        await UsageLog.insertMany(usageLogs);
+        const totalGB = usageLogs.reduce((sum, log) => sum + log.download + log.upload, 0) / (1024 * 1024 * 1024);
+        console.log(`✅ Generated ${usageLogs.length} usage logs with ${totalGB.toFixed(2)} GB total usage`);
+      }
       
       // Update payment with subscription ID
       payment.subscription = subscription._id;

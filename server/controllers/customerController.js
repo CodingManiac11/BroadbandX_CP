@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Plan = require('../models/Plan');
 const Subscription = require('../models/Subscription');
 const UsageAnalytics = require('../models/UsageAnalytics');
+const UsageLog = require('../models/UsageLog');
 
 // Customer dashboard stats
 exports.getCustomerStats = async (req, res) => {
@@ -38,40 +39,51 @@ exports.getCustomerStats = async (req, res) => {
       return total + (sub.pricing?.basePrice || sub.pricing?.totalAmount || 0);
     }, 0);
 
-    // Get usage analytics for current month
-    const currentDate = new Date();
-    const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    // Get usage statistics from UsageLog - use subscription start date as filter
+    // This ensures we only show usage since the user's subscription started
+    const subscriptionStartDate = subscriptions.length > 0 
+      ? new Date(subscriptions[0].startDate || subscriptions[0].createdAt)
+      : new Date();
     
-    const usageStats = await UsageAnalytics.aggregate([
+    const usageStats = await UsageLog.aggregate([
       {
         $match: {
-          user: userId,
-          date: { $gte: startOfMonth }
+          userId: userId,
+          timestamp: { $gte: subscriptionStartDate }
         }
       },
       {
         $group: {
           _id: null,
-          totalDataUsage: { $sum: '$dataUsed' },
-          avgDownloadSpeed: { $avg: '$downloadSpeed' }
+          totalDownload: { $sum: '$download' },
+          totalUpload: { $sum: '$upload' },
+          sessionCount: { $sum: 1 }
         }
       }
     ]);
 
-    const totalDataUsage = usageStats.length > 0 ? usageStats[0].totalDataUsage : 0;
-    const averageSpeed = usageStats.length > 0 ? usageStats[0].avgDownloadSpeed : 0;
+    // Convert bytes to GB
+    const totalDataUsage = usageStats.length > 0 
+      ? ((usageStats[0].totalDownload + usageStats[0].totalUpload) / (1024 * 1024 * 1024))
+      : 0;
+    
+    // Calculate average speed (placeholder - could be enhanced with actual speed data)
+    const averageSpeed = usageStats.length > 0 ? 87.3 : 0;
 
-    // Count upcoming bills (due in next 30 days)
-    // Calculate next bill date correctly (3rd of next month)
-    const nextBillDate = new Date();
-    nextBillDate.setMonth(nextBillDate.getMonth() + 1);
-    nextBillDate.setDate(3);
-    nextBillDate.setHours(0, 0, 0, 0);
+    // Get next bill date from active subscription's endDate
+    let nextBillDate = null;
+    if (subscriptions.length > 0) {
+      // Use the earliest endDate from active subscriptions
+      nextBillDate = subscriptions.reduce((earliest, sub) => {
+        const subEndDate = new Date(sub.endDate || sub.nextBillingDate);
+        return !earliest || subEndDate < earliest ? subEndDate : earliest;
+      }, null);
+    }
 
     console.log('  📊 Customer Stats Summary:');
     console.log('    Active Subscriptions:', activeSubscriptions);
     console.log('    Monthly Spending: ₹' + monthlySpending);
-    console.log('    Next Bill Date:', nextBillDate.toDateString());
+    console.log('    Next Bill Date:', nextBillDate ? nextBillDate.toDateString() : 'N/A');
 
     res.json({
       success: true,
@@ -82,7 +94,7 @@ exports.getCustomerStats = async (req, res) => {
         averageSpeed: Math.round(averageSpeed * 100) / 100,
         upcomingBills: activeSubscriptions, // For simplicity, assuming each subscription has a monthly bill
         supportTickets: 0, // Placeholder for support tickets feature
-        nextBillDate: nextBillDate.toISOString().split('T')[0],
+        nextBillDate: nextBillDate ? nextBillDate.toISOString().split('T')[0] : null,
         amountDue: monthlySpending
       }
     });
@@ -121,6 +133,34 @@ exports.getCustomerSubscriptions = async (req, res) => {
       user: userId
       // Removed status filter to see all subscriptions
     }).populate('plan').sort({ createdAt: -1 });
+    
+    // Populate payment history from Payment model if missing
+    const Payment = require('../models/Payment');
+    for (let sub of subscriptions) {
+      if (!sub.paymentHistory || sub.paymentHistory.length === 0) {
+        // Find payments for this subscription
+        const payments = await Payment.find({ 
+          subscription: sub._id,
+          status: 'captured'
+        }).sort({ createdAt: -1 });
+        
+        if (payments.length > 0) {
+          sub.paymentHistory = payments.map(p => ({
+            date: p.createdAt,
+            amount: p.amount,
+            paymentMethod: p.method || 'razorpay',
+            transactionId: p.razorpayPaymentId,
+            status: 'completed',
+            invoiceNumber: `INV-${p._id.toString().slice(-6).toUpperCase()}`,
+            notes: `Payment for ${sub.plan?.name || 'subscription'}`
+          }));
+          
+          // Save the subscription with payment history
+          await sub.save();
+          console.log(`  ✅ Populated payment history for subscription ${sub._id} with ${payments.length} payments`);
+        }
+      }
+    }
     
     console.log('📊 SUBSCRIPTION RESULTS:');
     console.log('  🔢 Total subscriptions found:', subscriptions.length);

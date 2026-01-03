@@ -16,127 +16,6 @@ import {
 } from '@mui/material';
 import { Plan } from '../types/index';
 
-const mockPlans: Plan[] = [
-  {
-    _id: '1',
-    name: 'Basic Plan',
-    description: 'Perfect for individual users',
-    category: 'residential',
-    pricing: {
-      monthly: 29.99,
-      yearly: 299.99,
-      setupFee: 0,
-      currency: 'USD'
-    },
-    features: {
-      speed: {
-        download: 100,
-        upload: 20,
-        unit: 'Mbps'
-      },
-      dataLimit: {
-        amount: 500,
-        unit: 'GB',
-        unlimited: false
-      },
-      features: [
-        {
-          name: 'Basic Support',
-          description: '24/7 email support',
-          included: true
-        },
-        {
-          name: 'Streaming Quality',
-          description: 'HD streaming support',
-          included: true
-        }
-      ]
-    },
-    availability: {
-      regions: ['US'],
-      cities: ['All Cities']
-    },
-    technicalSpecs: {
-      technology: 'cable',
-      latency: 20,
-      reliability: 99.5,
-      installation: {
-        required: true,
-        fee: 0,
-        timeframe: '1-2 business days'
-      }
-    },
-    targetAudience: 'residential-users',
-    contractTerms: {
-      minimumTerm: 12,
-      earlyTerminationFee: 50,
-      autoRenewal: true
-    },
-    isActive: true,
-    popularity: 75,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    _id: '2',
-    name: 'Premium Plan',
-    description: 'Ideal for power users',
-    category: 'business',
-    pricing: {
-      monthly: 99.99,
-      yearly: 999.99,
-      setupFee: 0,
-      currency: 'USD'
-    },
-    features: {
-      speed: {
-        download: 500,
-        upload: 100,
-        unit: 'Mbps'
-      },
-      dataLimit: {
-        unlimited: true
-      },
-      features: [
-        {
-          name: 'Priority Support',
-          description: '24/7 priority phone & email support',
-          included: true
-        },
-        {
-          name: 'Streaming Quality',
-          description: '4K streaming support',
-          included: true
-        }
-      ]
-    },
-    availability: {
-      regions: ['US'],
-      cities: ['All Cities']
-    },
-    technicalSpecs: {
-      technology: 'fiber',
-      latency: 10,
-      reliability: 99.8,
-      installation: {
-        required: true,
-        fee: 0,
-        timeframe: '1 business day'
-      }
-    },
-    targetAudience: 'business-users',
-    contractTerms: {
-      minimumTerm: 24,
-      earlyTerminationFee: 100,
-      autoRenewal: true
-    },
-    isActive: true,
-    popularity: 90,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }
-];
-
 const PlanManagementSection: React.FC = () => {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,9 +24,22 @@ const PlanManagementSection: React.FC = () => {
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-        // Implement actual API call here
-        setPlans(mockPlans);
+        const token = localStorage.getItem('access_token');
+        const response = await fetch('http://localhost:5001/api/billing/plans', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch plans');
+        }
+
+        const data = await response.json();
+        setPlans(data.plans || data.data || []);
       } catch (err) {
+        console.error('Error fetching plans:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch plans');
       } finally {
         setLoading(false);

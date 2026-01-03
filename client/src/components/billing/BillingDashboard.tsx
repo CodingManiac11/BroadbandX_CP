@@ -31,6 +31,7 @@ import {
   ContentCopy as CopyIcon,
   Payment as PaymentIcon,
   History as HistoryIcon,
+  Download as DownloadIcon,
 } from '@mui/icons-material';
 import axios from 'axios';
 import { useRealtime } from '../../contexts/RealtimeContext';
@@ -240,14 +241,9 @@ const InvoicePaymentButton = ({ invoice, onPaymentSuccess, onPaymentError, paidI
         return;
       }
       
-      // Map MongoDB payment IDs to simple invoice IDs for PDF endpoint
-      const invoiceIdMapping: { [key: string]: string } = {
-        '69268565094fd1e27e5b9acb': '1', // INV-001
-        '69268565094fd1e27e5b9acc': '2'  // INV-002
-      };
-      
-      const pdfInvoiceId = invoiceIdMapping[invoice.id as string] || invoice.invoiceNumber?.replace('INV-', '') || '1';
-      console.log('📄 Using PDF invoice ID:', pdfInvoiceId, 'for payment ID:', invoice.id);
+      // Use invoice/payment ID directly from database
+      const pdfInvoiceId = invoice.id || invoice._id || invoice.invoiceNumber?.replace('INV-', '') || '1';
+      console.log('📄 Using PDF invoice ID:', pdfInvoiceId, 'for invoice:', invoice.invoiceNumber);
       
       // Get userId from localStorage to pass to PDF endpoint
       const userId = localStorage.getItem('userId');
@@ -533,24 +529,9 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
             };
           });
         } else {
-          // Create invoice from subscription data if no payment history
-          console.log('📋 No payment history found, creating invoice from subscription data');
-          processedInvoices = [{
-            id: subscriptionData.id || subscriptionData._id,
-            invoiceNumber: 'INV-001',
-            amount: subscriptionData.pricing?.totalAmount || subscriptionData.pricing?.finalPrice || 0,
-            status: 'Paid',
-            date: new Date(subscriptionData.createdAt).toLocaleDateString('en-GB'),
-            dueDate: (() => {
-              const startDate = new Date(subscriptionData.startDate || subscriptionData.createdAt);
-              const dueDate = new Date(startDate);
-              dueDate.setMonth(dueDate.getMonth() + 1);
-              return dueDate.toLocaleDateString('en-GB');
-            })(),
-            description: `${subscriptionData.planName || 'Subscription'} - Monthly`,
-            paymentDate: new Date(subscriptionData.createdAt).toISOString(),
-            transactionId: `TXN${subscriptionData.id || Date.now()}`
-          }];
+          // No payment history and no payments - show empty
+          console.log('📋 No payment history found, no invoices to display');
+          processedInvoices = [];
         }
         
         console.log('💳 Processed invoices from payment history:', processedInvoices);
@@ -568,23 +549,16 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
         });
         console.log('📊 Subscription data loaded successfully');
       } else {
-        console.log('⚠️ No subscription data found, showing mock data');
+        console.log('⚠️ No subscription data found, showing empty invoices');
         
-        // Create invoices respecting paid status - using actual payment IDs from database
-        const mockInvoices = [
-          { id: '69268565094fd1e27e5b9acb', invoiceNumber: 'INV-001', amount: 32.18, status: 'Paid', date: '03/12/2025', dueDate: '03/01/2026', description: 'Basic Plan29 - Monthly', paymentDate: '03/12/2025', transactionId: 'TXN001' },
-          { id: '6930843e4e88bd85029b0fd2', invoiceNumber: 'INV-002', amount: 98.68, status: 'Pending', date: '04/12/2025', dueDate: '03/01/2026', description: 'Premium Plan79 - Monthly (After Upgrade)', paymentDate: null, transactionId: null }
-        ];
-        
-        console.log('📋 Creating mock data with paid invoices:', Array.from(paidInvoices));
-        
+        // Don't show fake invoices - only show real payment data
         setData({
           subscription: {
-            plan: { name: 'Premium Plan79', price: 98.68 },
-            status: 'active',
+            plan: { name: 'No Active Plan', price: 0 },
+            status: 'inactive',
             nextBilling: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
           },
-          invoices: mockInvoices
+          invoices: []
         });
       }
 
@@ -595,41 +569,14 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
       setError(error.message || 'Failed to load billing data');
       onError?.(error.message || 'Failed to load billing data');
       
-      // Fallback to mock data respecting paid invoices - using actual payment IDs
-      const fallbackInvoices = [
-        { 
-          id: '69268565094fd1e27e5b9acb', 
-          invoiceNumber: 'INV-001', 
-          amount: 32.18, 
-          status: 'Paid', 
-          date: '03/12/2025', 
-          dueDate: '03/01/2026', 
-          description: 'Basic Plan29 - Monthly', 
-          paymentDate: '03/12/2025', 
-          transactionId: 'TXN001' 
-        },
-        { 
-          id: '6930843e4e88bd85029b0fd3', 
-          invoiceNumber: 'INV-002', 
-          amount: 98.68, 
-          status: 'Pending', 
-          date: new Date().toLocaleDateString('en-GB'), 
-          dueDate: '03/01/2026', 
-          description: 'Premium Plan79 - Monthly (After Upgrade)', 
-          paymentDate: null, 
-          transactionId: null 
-        }
-      ];
-      
-      console.log('🔄 Creating fallback data with paid invoices:', Array.from(paidInvoices));
-      
-        setData({
+      // Don't show fake invoices on error - show empty state
+      setData({
         subscription: {
-          plan: { name: 'Premium Plan79', price: 98.68 },
-          status: 'active',
+          plan: { name: 'No Active Plan', price: 0 },
+          status: 'inactive',
           nextBilling: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         },
-        invoices: fallbackInvoices
+        invoices: []
       });
     } finally {
       setLoading(false);
@@ -699,9 +646,38 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
       {/* Invoices Table */}
       <Card>
         <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Recent Invoices
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+              Recent Invoices
+            </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('token');
+                  const response = await axios.get(
+                    'http://localhost:5001/api/billing/invoices/export/csv',
+                    {
+                      headers: { Authorization: `Bearer ${token}` },
+                      responseType: 'blob'
+                    }
+                  );
+                  const url = window.URL.createObjectURL(new Blob([response.data]));
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.setAttribute('download', `invoices_${new Date().toISOString().split('T')[0]}.csv`);
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                } catch (error) {
+                  console.error('Failed to export invoices:', error);
+                }
+              }}
+            >
+              Export CSV
+            </Button>
+          </Box>
           
           {invoices && invoices.length > 0 ? (
             <TableContainer component={Paper} variant="outlined">
@@ -719,10 +695,10 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
                   {invoices.map((invoice: any, index: number) => (
                     <TableRow key={`${invoice.id || index}-${invoice.status}-${refreshTrigger}`}>
                       <TableCell>{invoice.invoiceNumber || `INV-${index + 1}`}</TableCell>
-                      <TableCell>₹{invoice.amount || '32.18'}</TableCell>
+                      <TableCell>₹{invoice.amount}</TableCell>
                       <TableCell>
                         <Chip
-                          label={invoice.status || 'paid'}
+                          label={invoice.status}
                           color={
                             (invoice.status?.toLowerCase() === 'paid') 
                               ? 'success' 
@@ -731,7 +707,7 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
                           size="small"
                         />
                       </TableCell>
-                      <TableCell>{invoice.date || new Date().toLocaleDateString()}</TableCell>
+                      <TableCell>{invoice.date}</TableCell>
                       <TableCell>
                         <InvoicePaymentButton
                           key={`payment-${invoice.id}-${invoice.status}-${refreshTrigger}-${Array.from(paidInvoices).join('-')}`}

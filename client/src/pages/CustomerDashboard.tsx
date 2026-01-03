@@ -48,11 +48,14 @@ import {
   Payment,
   Support,
   Add,
-  Notifications as NotificationsIcon
+  Notifications as NotificationsIcon,
+  Download as DownloadIcon
 } from '@mui/icons-material';
 import { BillingDashboard } from '../components/billing';
 import SupportCenter from '../components/SupportCenter';
 import AccountSettingsSimple from '../components/AccountSettingsSimple';
+import UsageTracking from '../components/UsageTracking';
+import BillingReminders from '../components/BillingReminders';
 import { useAuth } from '../contexts/AuthContext';
 import { useRealtime } from '../contexts/RealtimeContext';
 import webSocketService from '../services/webSocketService';
@@ -124,6 +127,13 @@ const CustomerDashboard: React.FC = () => {
     };
     
     initializeDashboard();
+    
+    // Auto-refresh customer stats every 60 seconds for updated data
+    const refreshInterval = setInterval(() => {
+      fetchCustomerStats();
+    }, 60000);
+    
+    return () => clearInterval(refreshInterval);
   }, []);
 
 
@@ -737,18 +747,7 @@ const CustomerDashboard: React.FC = () => {
       case 'billing':
         return <BillingSection />;
       case 'usage':
-        return (
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Usage Analytics
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Usage analytics and charts will be implemented here.
-              </Typography>
-            </CardContent>
-          </Card>
-        );
+        return <UsageTracking />;
       case 'support':
         return <SupportCenter />;
       case 'settings':
@@ -854,6 +853,11 @@ const CustomerDashboard: React.FC = () => {
                 </CardContent>
               </Card>
             </Box>
+
+            {/* Billing Reminders Section on Dashboard */}
+            <Box mt={3}>
+              <BillingReminders />
+            </Box>
           </Box>
         );
     }
@@ -878,6 +882,9 @@ const CustomerDashboard: React.FC = () => {
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             BroadbandX - Customer Portal
           </Typography>
+          
+          {/* Billing Reminders Notification Icon */}
+          <BillingReminders compact onClose={() => setActiveSection('dashboard')} />
           
           {/* Real-time connection status */}
           <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
@@ -976,9 +983,39 @@ const CustomerDashboard: React.FC = () => {
         <ModalBody>
           {selectedSubscription && (
             <Box>
-              <Typography variant="h6" gutterBottom>
-                {selectedSubscription.plan.name} - Usage Details
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">
+                  {selectedSubscription.plan.name} - Usage Details
+                </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<DownloadIcon />}
+                  onClick={async () => {
+                    try {
+                      const token = localStorage.getItem('token');
+                      const response = await fetch(
+                        'http://localhost:5001/api/usage/export/csv',
+                        {
+                          headers: { Authorization: `Bearer ${token}` }
+                        }
+                      );
+                      const blob = await response.blob();
+                      const url = window.URL.createObjectURL(blob);
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.setAttribute('download', `usage_${new Date().toISOString().split('T')[0]}.csv`);
+                      document.body.appendChild(link);
+                      link.click();
+                      link.remove();
+                    } catch (error) {
+                      console.error('Failed to export usage:', error);
+                    }
+                  }}
+                >
+                  Export CSV
+                </Button>
+              </Box>
               
               <Card sx={{ mb: 3 }}>
                 <CardContent>
