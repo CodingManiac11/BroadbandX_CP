@@ -646,38 +646,9 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
       {/* Invoices Table */}
       <Card>
         <CardContent>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h6">
-              Recent Invoices
-            </Typography>
-            <Button
-              variant="outlined"
-              startIcon={<DownloadIcon />}
-              onClick={async () => {
-                try {
-                  const token = localStorage.getItem('token');
-                  const response = await axios.get(
-                    'http://localhost:5001/api/billing/invoices/export/csv',
-                    {
-                      headers: { Authorization: `Bearer ${token}` },
-                      responseType: 'blob'
-                    }
-                  );
-                  const url = window.URL.createObjectURL(new Blob([response.data]));
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.setAttribute('download', `invoices_${new Date().toISOString().split('T')[0]}.csv`);
-                  document.body.appendChild(link);
-                  link.click();
-                  link.remove();
-                } catch (error) {
-                  console.error('Failed to export invoices:', error);
-                }
-              }}
-            >
-              Export CSV
-            </Button>
-          </Box>
+          <Typography variant="h6" gutterBottom>
+            Recent Invoices
+          </Typography>
           
           {invoices && invoices.length > 0 ? (
             <TableContainer component={Paper} variant="outlined">

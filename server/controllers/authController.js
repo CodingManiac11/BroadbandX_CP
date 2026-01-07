@@ -49,17 +49,8 @@ const register = asyncHandler(async (req, res) => {
   // Remove password from response
   user.password = undefined;
 
-  // Send welcome email (non-blocking)
-  try {
-    await emailService.sendWelcomeEmail(user.email, {
-      name: `${user.firstName} ${user.lastName}`,
-      userId: user._id
-    });
-  } catch (emailError) {
-    console.log('Failed to send welcome email:', emailError.message);
-    // Don't fail registration if email fails
-  }
-
+  // Note: Welcome email will be sent after user purchases a subscription
+  
   res.status(201).json({
     status: 'success',
     message: 'User registered successfully',

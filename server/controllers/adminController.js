@@ -922,26 +922,51 @@ const deleteUser = asyncHandler(async (req, res) => {
     });
   }
 
-  // Check if user has active subscriptions
-  const activeSubscriptions = await Subscription.countDocuments({
-    user: req.params.id,
-    status: 'active'
-  });
+  // Force delete: Remove all related data
+  try {
+    // Delete all subscriptions (active or inactive)
+    const deletedSubscriptions = await Subscription.deleteMany({ user: req.params.id });
+    console.log(`🗑️ Deleted ${deletedSubscriptions.deletedCount} subscription(s)`);
 
-  if (activeSubscriptions > 0) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Cannot delete user with active subscriptions. Please cancel all subscriptions first.'
+    // Delete all payments
+    const Payment = require('../models/Payment');
+    const deletedPayments = await Payment.deleteMany({ user: req.params.id });
+    console.log(`🗑️ Deleted ${deletedPayments.deletedCount} payment(s)`);
+
+    // Delete all billing records
+    const Billing = require('../models/Billing');
+    const deletedBilling = await Billing.deleteMany({ user: req.params.id });
+    console.log(`🗑️ Deleted ${deletedBilling.deletedCount} billing record(s)`);
+
+    // Delete all usage logs
+    const UsageLog = require('../models/UsageLog');
+    const deletedUsage = await UsageLog.deleteMany({ userId: req.params.id });
+    console.log(`🗑️ Deleted ${deletedUsage.deletedCount} usage log(s)`);
+
+    // Delete all feedback
+    const Feedback = require('../models/Feedback');
+    const deletedFeedback = await Feedback.deleteMany({ user: req.params.id });
+    console.log(`🗑️ Deleted ${deletedFeedback.deletedCount} feedback(s)`);
+
+    // Delete user
+    await User.findByIdAndDelete(req.params.id);
+    console.log(`✅ User ${user.email} deleted successfully`);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'User and all related data deleted successfully',
+      data: {
+        subscriptionsDeleted: deletedSubscriptions.deletedCount,
+        paymentsDeleted: deletedPayments.deletedCount,
+        billingRecordsDeleted: deletedBilling.deletedCount,
+        usageLogsDeleted: deletedUsage.deletedCount,
+        feedbackDeleted: deletedFeedback.deletedCount
+      }
     });
+  } catch (error) {
+    console.error('❌ Error during user deletion:', error);
+    throw error;
   }
-
-  // Delete user
-  await User.findByIdAndDelete(req.params.id);
-
-  res.status(200).json({
-    status: 'success',
-    message: 'User deleted successfully'
-  });
 });
 
 // @desc    Get system health

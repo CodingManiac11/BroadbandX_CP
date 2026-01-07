@@ -983,39 +983,9 @@ const CustomerDashboard: React.FC = () => {
         <ModalBody>
           {selectedSubscription && (
             <Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">
-                  {selectedSubscription.plan.name} - Usage Details
-                </Typography>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={<DownloadIcon />}
-                  onClick={async () => {
-                    try {
-                      const token = localStorage.getItem('token');
-                      const response = await fetch(
-                        'http://localhost:5001/api/usage/export/csv',
-                        {
-                          headers: { Authorization: `Bearer ${token}` }
-                        }
-                      );
-                      const blob = await response.blob();
-                      const url = window.URL.createObjectURL(blob);
-                      const link = document.createElement('a');
-                      link.href = url;
-                      link.setAttribute('download', `usage_${new Date().toISOString().split('T')[0]}.csv`);
-                      document.body.appendChild(link);
-                      link.click();
-                      link.remove();
-                    } catch (error) {
-                      console.error('Failed to export usage:', error);
-                    }
-                  }}
-                >
-                  Export CSV
-                </Button>
-              </Box>
+              <Typography variant="h6" gutterBottom>
+                {selectedSubscription.plan.name} - Usage Details
+              </Typography>
               
               <Card sx={{ mb: 3 }}>
                 <CardContent>

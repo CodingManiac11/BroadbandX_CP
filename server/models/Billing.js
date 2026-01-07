@@ -9,7 +9,7 @@ const BillingSchema = new mongoose.Schema({
   subscription: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Subscription',
-    required: true
+    required: false // Made optional for payments without subscriptions
   },
   invoiceNumber: {
     type: String,

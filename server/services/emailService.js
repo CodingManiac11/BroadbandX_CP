@@ -63,16 +63,19 @@ const EMAIL_TEMPLATES = {
     subject: 'Welcome to BroadbandX!',
     template: (data) => `
       <h2>Welcome to BroadbandX!</h2>
-      <p>Dear ${data.customerName},</p>
+      <p>Dear ${data.customerName || 'Valued Customer'},</p>
       <p>Thank you for choosing BroadbandX as your internet service provider. We're excited to have you onboard!</p>
       <p>Your service details:</p>
       <ul>
-        <li>Plan: ${data.planName}</li>
-        <li>Speed: ${data.speed}</li>
-        <li>Monthly Data: ${data.data}</li>
-        <li>Installation Date: ${data.installationDate}</li>
+        <li><strong>Plan:</strong> ${data.planName || 'N/A'}</li>
+        <li><strong>Speed:</strong> ${data.speed || 'N/A'}</li>
+        <li><strong>Monthly Data:</strong> ${data.data || 'N/A'}</li>
+        <li><strong>Installation Date:</strong> ${data.installationDate || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</li>
+        <li><strong>Price:</strong> ₹${data.price || 'N/A'}/month</li>
       </ul>
       <p>You can access your account dashboard at any time by visiting <a href="${process.env.CLIENT_URL}/dashboard">your dashboard</a>.</p>
+      <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
+      <p>Thank you for choosing BroadbandX!</p>
     `,
   },
   SUPPORT_TICKET: {

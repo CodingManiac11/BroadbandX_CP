@@ -1,26 +1,26 @@
 const { Parser } = require('json2csv');
 
 /**
- * Convert invoices to CSV format
- * @param {Array} invoices - Array of invoice objects
+ * Convert payment records to CSV format for invoice export
+ * @param {Array} payments - Array of payment objects from Payment model
  * @returns {String} CSV string
  */
-const invoicesToCSV = (invoices) => {
+const invoicesToCSV = (payments) => {
   const fields = [
-    { label: 'Invoice ID', value: 'invoiceNumber' },
+    { label: 'Payment ID', value: 'razorpayOrderId' },
     { label: 'Date', value: 'createdAt' },
     { label: 'Customer Name', value: (row) => `${row.user?.firstName || ''} ${row.user?.lastName || ''}`.trim() },
     { label: 'Customer Email', value: 'user.email' },
     { label: 'Plan Name', value: 'subscription.plan.name' },
     { label: 'Amount', value: 'amount' },
-    { label: 'Status', value: 'paymentStatus' },
-    { label: 'Payment Method', value: 'paymentMethod' },
-    { label: 'Due Date', value: 'dueDate' },
-    { label: 'Paid Date', value: 'paidAt' }
+    { label: 'Currency', value: 'currency' },
+    { label: 'Status', value: 'status' },
+    { label: 'Payment Method', value: 'method' },
+    { label: 'Captured Date', value: 'capturedAt' }
   ];
 
   const parser = new Parser({ fields });
-  return parser.parse(invoices);
+  return parser.parse(payments);
 };
 
 /**
@@ -30,15 +30,16 @@ const invoicesToCSV = (invoices) => {
  */
 const usageLogsToCSV = (usageLogs) => {
   const fields = [
-    { label: 'Date', value: 'date' },
-    { label: 'Customer Name', value: (row) => `${row.user?.firstName || ''} ${row.user?.lastName || ''}`.trim() },
-    { label: 'Customer Email', value: 'user.email' },
-    { label: 'Plan Name', value: 'subscription.plan.name' },
-    { label: 'Download (GB)', value: (row) => (row.dataUsed?.download || 0).toFixed(2) },
-    { label: 'Upload (GB)', value: (row) => (row.dataUsed?.upload || 0).toFixed(2) },
-    { label: 'Total (GB)', value: (row) => (row.dataUsed?.total || 0).toFixed(2) },
-    { label: 'Peak Speed (Mbps)', value: (row) => row.peakSpeed || 'N/A' },
-    { label: 'Session Duration (hours)', value: (row) => row.sessionDuration ? (row.sessionDuration / 3600).toFixed(2) : '0' }
+    { label: 'Timestamp', value: 'timestamp' },
+    { label: 'Customer Name', value: (row) => `${row.userId?.firstName || ''} ${row.userId?.lastName || ''}`.trim() || 'N/A' },
+    { label: 'Customer Email', value: 'userId.email' },
+    { label: 'Device Type', value: 'deviceType' },
+    { label: 'Download (GB)', value: (row) => ((row.download || 0) / 1024).toFixed(2) },
+    { label: 'Upload (GB)', value: (row) => ((row.upload || 0) / 1024).toFixed(2) },
+    { label: 'Total (GB)', value: (row) => (((row.download || 0) + (row.upload || 0)) / 1024).toFixed(2) },
+    { label: 'Download Speed (Mbps)', value: (row) => (row.downloadSpeed || 0).toFixed(2) },
+    { label: 'Upload Speed (Mbps)', value: (row) => (row.uploadSpeed || 0).toFixed(2) },
+    { label: 'Session Duration (min)', value: (row) => row.sessionDuration || 0 }
   ];
 
   const parser = new Parser({ fields });

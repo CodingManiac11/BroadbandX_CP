@@ -436,13 +436,38 @@ const AdminDashboard: React.FC = () => {
                 startIcon={<Icons.Download />}
                 onClick={async () => {
                   try {
-                    const token = localStorage.getItem('token');
+                    // Get token using the correct key 'access_token'
+                    const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+                    
+                    if (!token || token === 'null' || token === 'undefined') {
+                      alert('Authentication required. Please login again.');
+                      window.location.href = '/login';
+                      return;
+                    }
+                    
+                    console.log('Sending request with token length:', token.length);
+                    
                     const response = await fetch(
                       'http://localhost:5001/api/usage/export/csv',
                       {
-                        headers: { Authorization: `Bearer ${token}` }
+                        headers: { 
+                          'Authorization': `Bearer ${token}`,
+                          'Content-Type': 'application/json'
+                        }
                       }
                     );
+                    
+                    if (!response.ok) {
+                      const contentType = response.headers.get('content-type');
+                      if (contentType && contentType.includes('application/json')) {
+                        const errorData = await response.json();
+                        alert(`Export failed: ${errorData.message || 'Unknown error'}`);
+                      } else {
+                        alert(`Export failed with status: ${response.status}`);
+                      }
+                      return;
+                    }
+                    
                     const blob = await response.blob();
                     const url = window.URL.createObjectURL(blob);
                     const link = document.createElement('a');
@@ -451,8 +476,10 @@ const AdminDashboard: React.FC = () => {
                     document.body.appendChild(link);
                     link.click();
                     link.remove();
+                    window.URL.revokeObjectURL(url);
                   } catch (error) {
                     console.error('Failed to export usage:', error);
+                    alert('Failed to export usage data. Please try again.');
                   }
                 }}
                 fullWidth
@@ -465,13 +492,38 @@ const AdminDashboard: React.FC = () => {
                 startIcon={<Icons.Download />}
                 onClick={async () => {
                   try {
-                    const token = localStorage.getItem('token');
+                    // Get token using the correct key 'access_token'
+                    const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+                    
+                    if (!token || token === 'null' || token === 'undefined') {
+                      alert('Authentication required. Please login again.');
+                      window.location.href = '/login';
+                      return;
+                    }
+                    
+                    console.log('Sending request with token length:', token.length);
+                    
                     const response = await fetch(
                       'http://localhost:5001/api/billing/invoices/export/csv',
                       {
-                        headers: { Authorization: `Bearer ${token}` }
+                        headers: { 
+                          'Authorization': `Bearer ${token}`,
+                          'Content-Type': 'application/json'
+                        }
                       }
                     );
+                    
+                    if (!response.ok) {
+                      const contentType = response.headers.get('content-type');
+                      if (contentType && contentType.includes('application/json')) {
+                        const errorData = await response.json();
+                        alert(`Export failed: ${errorData.message || 'Unknown error'}`);
+                      } else {
+                        alert(`Export failed with status: ${response.status}`);
+                      }
+                      return;
+                    }
+                    
                     const blob = await response.blob();
                     const url = window.URL.createObjectURL(blob);
                     const link = document.createElement('a');
@@ -480,8 +532,10 @@ const AdminDashboard: React.FC = () => {
                     document.body.appendChild(link);
                     link.click();
                     link.remove();
+                    window.URL.revokeObjectURL(url);
                   } catch (error) {
                     console.error('Failed to export invoices:', error);
+                    alert('Failed to export invoices. Please try again.');
                   }
                 }}
                 fullWidth

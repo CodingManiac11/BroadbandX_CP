@@ -19,6 +19,10 @@ const planRoutes = require('./routes/plans');
 const subscriptionRoutes = require('./routes/subscriptions');
 const adminRoutes = require('./routes/admin');
 const planRequestRoutes = require('./routes/planRequests');
+const usageRoutes = require('./routes/usage');
+const razorpayRoutes = require('./routes/razorpay');
+const notificationRoutes = require('./routes/notificationRoutes');
+const feedbackRoutes = require('./routes/feedback');
 // const analyticsRoutes = require('./routes/analytics');
 const recommendationRoutes = require('./routes/recommendations');
 const pricingRoutes = require('./routes/pricing');
@@ -27,6 +31,9 @@ const pricingRoutes = require('./routes/pricing');
 const { errorHandler } = require('./middleware/errorHandler');
 const { authenticateToken } = require('./middleware/auth');
 const RealTimeEvents = require('./utils/realTimeEvents');
+
+// Import services
+const usageAnalyticsService = require('./services/UsageAnalyticsService');
 
 const app = express();
 const server = createServer(app);
@@ -127,6 +134,11 @@ const connectDB = async () => {
 
     console.log(`✅ Connected to MongoDB Atlas: ${conn.connection.host}`);
     
+    // Start usage analytics service
+    console.log('📊 Starting Usage Analytics Service...');
+    usageAnalyticsService.start();
+    console.log('✅ Usage Analytics Service started - will update every 4 hours');
+    
     // Handle connection events
     mongoose.connection.on('error', (err) => {
       console.error('❌ MongoDB connection error:', err);
@@ -152,10 +164,6 @@ const connectDB = async () => {
 
 // Initialize database connection
 connectDB();
-
-// Initialize Reminder Scheduler
-const reminderScheduler = require('./services/ReminderSchedulerService');
-reminderScheduler.start();
 
 // Socket.io connection handling
 const realTimeEvents = new RealTimeEvents(io);
@@ -222,14 +230,14 @@ app.use('/api/users', authenticateToken, userRoutes);
 app.use('/api/plans', planRoutes);
 app.use('/api/subscriptions', authenticateToken, subscriptionRoutes);
 app.use('/api/plan-requests', authenticateToken, planRequestRoutes);
+app.use('/api/usage', authenticateToken, usageRoutes);
+app.use('/api/razorpay', razorpayRoutes);
+app.use('/api/notifications', authenticateToken, notificationRoutes);
+app.use('/api/feedback', feedbackRoutes);
 app.use('/api/admin', authenticateToken, adminRoutes);
 app.use('/api/customer', require('./routes/customer'));
 app.use('/api/billing', require('./routes/billing'));
 app.use('/api/pdf', require('./routes/pdf')); // Add PDF routes
-app.use('/api/feedback', require('./routes/feedback')); // Add feedback/support routes
-app.use('/api/razorpay', require('./routes/razorpay')); // Razorpay payment gateway
-app.use('/api/usage', authenticateToken, require('./routes/usage')); // Usage tracking
-app.use('/api/notifications', authenticateToken, require('./routes/notificationRoutes')); // Notifications
 // app.use('/api/payments', require('./routes/payments')); // Disabled - using UPI payments via customer routes
 // app.use('/api/analytics', authenticateToken, analyticsRoutes);
 app.use('/api/recommendations', authenticateToken, recommendationRoutes);
@@ -691,6 +699,8 @@ app.use(errorHandler);
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received. Shutting down gracefully...');
+  usageAnalyticsService.stop();
+  console.log('Usage Analytics Service stopped.');
   mongoose.connection.close();
   console.log('MongoDB connection closed.');
   process.exit(0);
@@ -698,6 +708,8 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   console.log('SIGINT received. Shutting down gracefully...');
+  usageAnalyticsService.stop();
+  console.log('Usage Analytics Service stopped.');
   mongoose.connection.close();
   console.log('MongoDB connection closed.');
   process.exit(0);

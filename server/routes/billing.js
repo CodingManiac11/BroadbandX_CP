@@ -682,15 +682,19 @@ router.get('/invoices/export/csv', authenticateToken, async (req, res) => {
     const userId = req.user._id || req.user.id;
     const isAdmin = req.user.role === 'admin';
 
-    // Build query based on user role
-    let query = {};
+    // Build query based on user role - only show captured (successful) payments
+    let query = { status: 'captured' };
     if (!isAdmin) {
-      query = { user: userId };
+      query.user = userId;
     }
 
-    // Get invoices with populated fields
-    const Payment = require('../models/BillingInvoice');
-    const invoices = await Payment.find(query)
+    console.log('📊 Invoice Export Request:');
+    console.log('  User:', req.user.email, '(', req.user.role, ')');
+    console.log('  Query:', JSON.stringify(query));
+
+    // Get payments (actual transaction records) instead of Billing
+    const Payment = require('../models/Payment');
+    const payments = await Payment.find(query)
       .populate('user', 'firstName lastName email')
       .populate({
         path: 'subscription',
@@ -699,15 +703,23 @@ router.get('/invoices/export/csv', authenticateToken, async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    if (invoices.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No invoices found'
+    console.log('  Found', payments.length, 'payment records');
+    if (payments.length > 0) {
+      console.log('  Sample payment:', {
+        razorpayOrderId: payments[0].razorpayOrderId,
+        amount: payments[0].amount,
+        status: payments[0].status
       });
     }
 
-    // Convert to CSV
-    const csv = invoicesToCSV(invoices);
+    // Convert to CSV (even if empty - will have headers)
+    let csv;
+    if (payments.length === 0) {
+      // Return empty CSV with headers only
+      csv = 'Payment ID,Date,Customer Name,Customer Email,Plan Name,Amount,Currency,Status,Payment Method,Captured Date\n';
+    } else {
+      csv = invoicesToCSV(payments);
+    }
 
     // Set headers for CSV download
     const filename = `invoices_${new Date().toISOString().split('T')[0]}.csv`;

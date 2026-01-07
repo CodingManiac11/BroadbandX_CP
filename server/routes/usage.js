@@ -47,36 +47,31 @@ router.get('/export/csv', authMiddleware, async (req, res) => {
     // Build query based on user role
     let query = {};
     if (!isAdmin) {
-      query = { user: userId };
+      query = { userId: userId };
     }
 
     // Get date range from query params (optional)
     const { startDate, endDate } = req.query;
     if (startDate || endDate) {
-      query.date = {};
-      if (startDate) query.date.$gte = new Date(startDate);
-      if (endDate) query.date.$lte = new Date(endDate);
+      query.timestamp = {};
+      if (startDate) query.timestamp.$gte = new Date(startDate);
+      if (endDate) query.timestamp.$lte = new Date(endDate);
     }
 
     // Get usage logs with populated fields
     const usageLogs = await UsageLog.find(query)
-      .populate('user', 'firstName lastName email')
-      .populate({
-        path: 'subscription',
-        populate: { path: 'plan', select: 'name' }
-      })
-      .sort({ date: -1 })
+      .populate('userId', 'firstName lastName email')
+      .sort({ timestamp: -1 })
       .lean();
 
+    // Convert to CSV (even if empty - will have headers)
+    let csv;
     if (usageLogs.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No usage data found'
-      });
+      // Return empty CSV with headers only
+      csv = 'Timestamp,Customer Name,Customer Email,Device Type,Download (GB),Upload (GB),Total (GB),Download Speed (Mbps),Upload Speed (Mbps),Session Duration (min)\n';
+    } else {
+      csv = usageLogsToCSV(usageLogs);
     }
-
-    // Convert to CSV
-    const csv = usageLogsToCSV(usageLogs);
 
     // Set headers for CSV download
     const filename = `usage_${new Date().toISOString().split('T')[0]}.csv`;

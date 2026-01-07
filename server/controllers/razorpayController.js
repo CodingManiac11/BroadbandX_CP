@@ -166,6 +166,50 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     payment.capturedAt = new Date();
     await payment.save();
 
+    // Create Billing record for captured payment
+    const Billing = require('../models/Billing');
+    try {
+      // Calculate billing period (1 month from now)
+      const billingStart = new Date();
+      const billingEnd = new Date(billingStart);
+      billingEnd.setMonth(billingEnd.getMonth() + 1);
+
+      const billingRecord = new Billing({
+        user: payment.user,
+        subscription: payment.subscription,
+        amount: payment.amount,
+        status: 'paid',
+        dueDate: billingStart,
+        billingPeriod: {
+          start: billingStart,
+          end: billingEnd
+        },
+        items: [{
+          description: paymentDetails.description || 'Subscription Payment',
+          amount: payment.amount,
+          quantity: 1,
+          total: payment.amount
+        }],
+        subtotal: payment.amount,
+        tax: 0,
+        discount: 0,
+        total: payment.amount,
+        paymentMethod: {
+          type: payment.method === 'card' ? 'credit_card' : 'other',
+          last4: payment.cardLast4,
+          cardBrand: payment.cardNetwork
+        },
+        paymentDate: payment.capturedAt,
+        transactionId: razorpay_payment_id
+      });
+      
+      await billingRecord.save();
+      console.log('✅ Created billing record:', billingRecord.invoiceNumber);
+    } catch (billingError) {
+      console.error('❌ Error creating billing record:', billingError.message);
+      // Don't fail the payment if billing record creation fails
+    }
+
     // Check if this is a new subscription or existing one
     let subscription = payment.subscription ? await Subscription.findById(payment.subscription) : null;
     
@@ -262,6 +306,27 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
       // Update payment with subscription ID
       payment.subscription = subscription._id;
       await payment.save();
+
+      // Send welcome email with subscription details
+      try {
+        const emailService = require('../services/emailService');
+        const user = await User.findById(payment.user);
+        
+        if (user && user.email) {
+          await emailService.sendWelcomeEmail(user.email, {
+            customerName: `${user.firstName} ${user.lastName}`,
+            planName: plan.name,
+            speed: plan.features?.speed ? `${plan.features.speed.download} Mbps Download / ${plan.features.speed.upload} Mbps Upload` : 'As per plan',
+            data: plan.features?.data || 'Unlimited',
+            price: plan.pricing.monthly,
+            installationDate: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+          });
+          console.log('✅ Welcome email sent to:', user.email);
+        }
+      } catch (emailError) {
+        console.error('❌ Failed to send welcome email:', emailError.message);
+        // Don't fail the subscription if email fails
+      }
     } else if (subscription && subscription.status !== 'active') {
       // Update existing subscription status to active
       subscription.status = 'active';

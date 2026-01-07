@@ -1,32 +1,111 @@
 # 🌐 BroadbandX - AI-Ready Dynamic Broadband Subscription Management Platform
 
-![BroadbandX](https://img.shields.io/badge/BroadbandX-v2.5-blue.svg)
+![BroadbandX](https://img.shields.io/badge/BroadbandX-v3.0-blue.svg)
 ![MERN](https://img.shields.io/badge/MERN-Stack-green.svg)
 ![WebSocket](https://img.shields.io/badge/Real--Time-WebSocket-red.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-100%25-blue.svg)
 ![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-green.svg)
 
-A comprehensive **broadband subscription management system** with **real-time communication** and **support ticket system** built using the **MERN stack**. Features advanced user management, secure payment processing, real-time updates via WebSocket, and integrated customer support functionality.
+A comprehensive **production-ready broadband subscription management system** with **real-time communication**, **email notifications**, and **data export capabilities** built using the **MERN stack**. Features advanced user management, secure payment processing, real-time updates via WebSocket, integrated customer support, and professional email services.
 
 ## 📊 **Current Implementation Status**
-- ✅ **User Management System** - Fully Operational
-- ✅ **Authentication & Security** - Production Ready
-- ✅ **Real-Time Communication** - Complete Implementation
-- ✅ **Plan Management** - One-Time Purchase Model 
-- ✅ **Subscription Management** - Simplified Operations Ready
-- ✅ **Billing & Invoicing** - 1-Month Billing Cycles
-- ✅ **Payment Processing** - Razorpay Integration Active 🆕
-- ✅ **Admin Dashboard** - Complete Management Interface
-- ✅ **Customer Dashboard** - Full User Interface
-- ✅ **Support Ticket System** - Customer Support Complete
-- ✅ **Usage Tracking System** - Bandwidth Monitoring Active 🆕
-- ✅ **Billing Reminders** - Automated Notification System 🆕
-- ✅ **Analytics Dashboard** - Basic Reporting Implemented
-- ✅ **Excel Data Integration** - Import/Export Capabilities
+- ✅ **User Management System** - Production Ready
+- ✅ **Authentication & Security** - Enhanced with Password Reset
+- ✅ **Email Notification System** - Gmail Integration Complete 🆕
+- ✅ **Real-Time Communication** - WebSocket Complete
+- ✅ **Plan Management** - API-Driven Implementation
+- ✅ **Subscription Management** - Full Lifecycle Operations
+- ✅ **Billing & Invoicing** - Dynamic Invoice Generation
+- ✅ **Payment Processing** - Razorpay Integration Active
+- ✅ **Admin Dashboard** - Enhanced with CSV Export 🆕
+- ✅ **Customer Dashboard** - Full User Experience
+- ✅ **Support Ticket System** - Complete Support Portal
+- ✅ **Usage Tracking System** - Real-Time Monitoring
+- ✅ **Password Reset Flow** - Email-Based Recovery 🆕
+- ✅ **CSV Data Export** - Invoices & Usage Export 🆕
+- ✅ **Analytics Dashboard** - Comprehensive Reporting
 
-## 🎯 **Latest Updates & Achievements**
+## 🎯 **Latest Updates & New Features (v3.0)**
 
-### 💳 **Payment Gateway Integration (Razorpay)** (100% Complete) 🆕
+### 📧 **Email Notification System** (100% Complete) 🆕
+- ✅ **Gmail SMTP Integration**: Production-ready email service
+- ✅ **Welcome Emails**: Automatic on user registration
+- ✅ **Password Reset Emails**: Secure reset links with 10-min expiration
+- ✅ **Payment Reminders**: Automated billing notifications
+- ✅ **Usage Alerts**: Bandwidth threshold warnings (80%, 90%, 100%)
+- ✅ **Service Updates**: Broadcast notifications to customers
+- ✅ **Support Ticket Updates**: Automated response notifications
+- ✅ **Feedback Requests**: Customer satisfaction surveys
+- ✅ **HTML Email Templates**: Professional, branded email design
+- ✅ **Error Handling**: Non-blocking with graceful fallback
+
+### 🔐 **Password Reset System** (100% Complete) 🆕
+- ✅ **Forgot Password Flow**:
+  - Clean UI at `/forgot-password`
+  - Email validation and error handling
+  - Success feedback with auto-redirect
+  
+- ✅ **Reset Password Page**:
+  - Secure token-based URL (`/reset-password/:token`)
+  - Password visibility toggles
+  - Password strength validation
+  - Confirmation field matching
+  
+- ✅ **Backend Security**:
+  - SHA-256 token hashing
+  - 10-minute token expiration
+  - Email delivery with retry logic
+  - Token invalidation after use
+
+- ✅ **User Experience**:
+  - "Forgot Password?" link on login page
+  - Real-time validation feedback
+  - Success/error alerts
+  - Seamless redirect to login
+
+### 📊 **CSV Data Export** (100% Complete) 🆕
+- ✅ **Invoice Export**:
+  - Download all invoices as CSV
+  - Includes: Invoice ID, date, customer, amount, status, payment method
+  - Customer-specific filtering
+  - Admin can export all invoices
+  
+- ✅ **Usage Data Export**:
+  - Download usage logs as CSV
+  - Includes: Date, data usage (up/down/total), speed metrics, duration
+  - Date range filtering support
+  - Plan and subscription details included
+  
+- ✅ **Export Locations**:
+  - **Customer Billing**: "Export CSV" button in invoice table
+  - **Customer Usage**: "Export CSV" in usage analytics modal
+  - **Admin Dashboard**: "Export All Usage" and "Export All Invoices"
+  
+- ✅ **Features**:
+  - Automatic filename with current date
+  - Role-based access control
+  - Browser download with proper headers
+  - Large dataset support
+
+### 🔧 **Code Quality Improvements** (100% Complete) 🆕
+- ✅ **Removed Hardcoded Data**:
+  - Invoice ID mapping removed from frontend
+  - Mock plan data replaced with API calls
+  - Dynamic invoice number generation from payment IDs
+  - All data fetched from database
+  
+- ✅ **Performance Optimization**:
+  - Reduced auto-refresh: Admin 30s, Customer 60s (from 1s)
+  - Efficient MongoDB aggregations
+  - Optimized real-time updates
+  
+- ✅ **Bug Fixes**:
+  - Fixed `avgUsagePerUser.toFixed()` error
+  - Aligned date filtering across endpoints
+  - Standardized userId handling (req.user._id)
+  - Fixed growth rate calculation for edge cases
+
+### 💳 **Payment Gateway Integration (Razorpay)** (100% Complete)
 - ✅ **Payment Order Creation**: Generate Razorpay orders with amount validation
 - ✅ **Signature Verification**: HMAC-SHA256 payment verification
 - ✅ **Payment History**: Paginated transaction history for users
@@ -36,17 +115,17 @@ A comprehensive **broadband subscription management system** with **real-time co
 - ✅ **Real-Time Notifications**: WebSocket events for payment status
 - ✅ **Admin Dashboard**: Payment management and monitoring
 
-### 📊 **Usage Tracking System** (100% Complete) 🆕
+### 📊 **Usage Tracking System** (100% Complete)
 - ✅ **Data Usage Monitoring**: Track upload, download, and total data
 - ✅ **Speed Metrics**: Average and peak speed tracking
 - ✅ **Daily Breakdown**: Granular daily usage statistics
 - ✅ **FUP Limit Detection**: Fair Usage Policy enforcement
 - ✅ **Automatic Alerts**: Email + WebSocket notifications at 80%, 90%, 100%
-- ✅ **Usage History**: 6-month historical data with trends
+- ✅ **Usage History**: Historical data with trends
 - ✅ **Admin Monitoring**: View all users' usage patterns
-- ✅ **Usage Statistics**: Weekly, monthly, yearly aggregates
+- ✅ **CSV Export**: Download usage data for analysis 🆕
 
-### 🔔 **Billing Reminder System** (100% Complete) 🆕
+### 🔔 **Billing Reminder System** (100% Complete)
 - ✅ **Automated Scheduling**: Cron jobs for reminder processing
 - ✅ **Multi-Level Reminders**: 7, 3, 1 days before, due date, overdue
 - ✅ **Email Notifications**: Templated emails with urgency indicators
@@ -56,46 +135,6 @@ A comprehensive **broadband subscription management system** with **real-time co
 - ✅ **Automatic Retry**: Error handling with retry logic
 - ✅ **Admin Management**: Create, send, and resolve reminders
 
-### 🎫 **Support Ticket System** (100% Complete)
-- ✅ **Customer Support Portal**: Create and track support tickets
-- ✅ **Admin Support Management**: View and respond to customer tickets
-- ✅ **Real-Time Updates**: Instant ticket status synchronization
-- ✅ **Feedback Integration**: Support tickets stored as feedback entries
-- ✅ **Admin Response System**: Reply to customer inquiries with auto-updates
-- ✅ **Ticket Status Tracking**: Open, In-Progress, Resolved, Closed states
-- ✅ **Email Notifications**: Optional email alerts (with graceful fallback)
-
-### 💰 **Simplified Billing System** (100% Complete) 🆕
-- ✅ **One-Time Purchase Model**: Removed plan modification features
-- ✅ **1-Month Billing Cycles**: All plans standardized to monthly billing
-- ✅ **Accurate Pricing Display**: Invoice amounts match Plan document pricing
-- ✅ **PDF Invoice Generation**: Actual user data in invoice PDFs
-- ✅ **Subscription-Plan Sync**: Real-time pricing corrections from Plan model
-- ✅ **Removed Plan History**: Streamlined to single active subscription
-
-### 🔐 **Enhanced Authentication** (100% Complete) 🆕
-- ✅ **Token Management**: Proper access_token and refresh_token handling
-- ✅ **Middleware Updates**: Fixed authenticateToken (was protect)
-- ✅ **Authorization System**: Role-based access with authorize middleware
-- ✅ **Debug Logging**: Comprehensive authentication tracking
-- ✅ **Token Validation**: Detailed error messages for troubleshooting
-
-### 📡 **Real-Time Communication System** (100% Complete)
-- ✅ **Socket.io Integration**: Full WebSocket server with authentication
-- ✅ **User-Specific Rooms**: Personal real-time channels for each user
-- ✅ **Live Subscription Updates**: Instant notifications for create/cancel/modify
-- ✅ **Toast Notifications**: React-Toastify integration with real-time events
-- ✅ **Connection Status**: Live connection monitoring with visual indicators
-- ✅ **Multi-Tab Sync**: Changes sync instantly across all open browser tabs
-- ✅ **Auto-Reconnection**: Robust connection recovery with retry logic
-
-### 🛡️ **MongoDB Atlas Integration** (100% Complete)
-- ✅ **Enhanced Connection Pooling**: Optimized with retry logic and timeouts
-- ✅ **Network Diagnostics**: DNS resolution and TCP connectivity validation
-- ✅ **Connection String Optimization**: Improved reliability parameters
-- ✅ **Error Handling**: Graceful degradation for database outages
-- ✅ **Enforced Atlas-Only**: No local database fallback
-
 ## ⭐ **Core Features**
 
 ### 🔐 **Authentication & Security** (100% Complete)
@@ -104,11 +143,12 @@ A comprehensive **broadband subscription management system** with **real-time co
 - ✅ Role-based access control (Customer/Admin)
 - ✅ Rate limiting and CORS protection
 - ✅ Input validation with schemas
-- ✅ Secure password reset and session management
+- ✅ Password reset with email verification 🆕
+- ✅ Secure token-based password recovery 🆕
 - ✅ WebSocket authentication integration
 - ✅ Token expiration and renewal handling
 
-### 🎫 **Support Ticket System** (100% Complete) 🆕
+### 🎫 **Support Ticket System** (100% Complete)
 - ✅ **Customer Portal**:
   - Create support tickets with title and description
   - View all submitted tickets with status
@@ -127,10 +167,10 @@ A comprehensive **broadband subscription management system** with **real-time co
   - Feedback model for ticket storage
   - User and subscription linking
   - Sentiment analysis (positive/neutral/negative)
-  - Email notifications (with error handling)
+  - Email notifications for responses 🆕
   - RESTful API endpoints
 
-### 💰 **Billing & Invoicing** (100% Complete) 🆕
+### 💰 **Billing & Invoicing** (100% Complete)
 - ✅ **One-Time Purchase Model**: Simplified subscription flow
 - ✅ **1-Month Billing Cycles**: Standardized monthly billing periods
 - ✅ **Accurate Pricing**: 
@@ -141,8 +181,9 @@ A comprehensive **broadband subscription management system** with **real-time co
 - ✅ **Invoice Management**:
   - PDF generation with actual customer data
   - Invoice history tracking
+  - CSV export for accounting 🆕
   - Correct due dates (1 month from period end)
-  - Removed duplicate plan displays
+  - Dynamic invoice numbering
   
 - ✅ **Price Synchronization**:
   - Automatic correction from Plan model
@@ -154,46 +195,10 @@ A comprehensive **broadband subscription management system** with **real-time co
 - ✅ Real-time subscription lifecycle management
 - ✅ Instant subscription cancellation with live updates
 - ✅ Dynamic subscription statistics calculation
-- ✅ **Simplified Model**: One active subscription per user
-- ✅ **No Plan Modifications**: Removed upgrade/downgrade features
-- ✅ **No Plan History**: Streamlined data model
+- ✅ API-driven plan management 🆕
+- ✅ One active subscription per user
 - ✅ Usage tracking and analytics with bandwidth monitoring
-
-### 💳 **Payment & Billing** (100% Complete) 🆕
-- ✅ **Razorpay Integration**:
-  - Multiple payment methods (Card, UPI, Netbanking, Wallets)
-  - Payment signature verification
-  - Webhook handling for real-time updates
-  - Refund support
-  
-- ✅ **Payment History**:
-  - Paginated transaction list
-  - Payment status tracking
-  - Invoice generation
-  
-- ✅ **Billing Reminders**:
-  - Automated reminder scheduling
-  - Multi-level notifications (7, 3, 1 days, due date)
-  - Email and real-time alerts
-  - Overdue payment tracking
-
-### 📊 **Usage Monitoring** (100% Complete) 🆕
-- ✅ **Data Usage Tracking**:
-  - Real-time bandwidth monitoring
-  - Upload/download separation
-  - Daily usage breakdown
-  - Speed metrics (average and peak)
-  
-- ✅ **Usage Alerts**:
-  - Automatic alerts at 80%, 90%, 100%
-  - Email notifications with urgency levels
-  - Real-time WebSocket alerts
-  - FUP limit detection
-  
-- ✅ **Usage Statistics**:
-  - Weekly, monthly, yearly aggregates
-  - Historical trend analysis
-  - Admin monitoring dashboard
+- ✅ Subscription data export capabilities 🆕
 
 ### 📊 **Admin Dashboard** (100% Complete)
 - ✅ **Dashboard Overview**:
@@ -367,28 +372,35 @@ Quest/
 ├── client/                   # React Frontend (Port: 3000)
 │   ├── src/
 │   │   ├── components/      # Reusable UI components
-│   │   │   ├── FeedbackManagement.tsx       # Admin support ticket management 🆕
-│   │   │   ├── SupportCenter.tsx            # Customer support portal 🆕
+│   │   │   ├── FeedbackManagement.tsx       # Admin support ticket management
+│   │   │   ├── SupportCenter.tsx            # Customer support portal
+│   │   │   ├── UsageTracking.tsx            # Usage monitoring dashboard
+│   │   │   ├── BillingReminders.tsx         # Billing notification panel
 │   │   │   ├── billing/
-│   │   │   │   └── BillingDashboard.tsx    # Billing with accurate pricing
-│   │   │   ├── AdminDashboard.tsx
+│   │   │   │   └── BillingDashboard.tsx    # Billing with CSV export 🆕
+│   │   │   ├── AdminDashboard.tsx           # Enhanced with export buttons 🆕
+│   │   │   ├── PlanManagementSection.tsx    # API-driven plans 🆕
 │   │   │   ├── PaymentForm.tsx
 │   │   │   ├── StatCard.tsx
 │   │   │   └── UserManagementContainer.tsx
 │   │   ├── pages/           # Page components
-│   │   │   ├── AdminDashboard.tsx           # Admin with Support section 🆕
-│   │   │   ├── CustomerDashboard.tsx        # Customer with Support 🆕
-│   │   │   ├── SubscriptionsPage.tsx        # Correct pricing display
-│   │   │   └── Login.tsx
+│   │   │   ├── AdminDashboard.tsx           # With CSV export actions 🆕
+│   │   │   ├── CustomerDashboard.tsx        # With usage CSV export 🆕
+│   │   │   ├── ForgotPassword.tsx           # Password reset request 🆕
+│   │   │   ├── ResetPassword.tsx            # Password reset form 🆕
+│   │   │   ├── LoginPage.tsx                # Enhanced with forgot password link 🆕
+│   │   │   ├── SubscriptionsPage.tsx
+│   │   │   └── ProfilePage.tsx
 │   │   ├── contexts/        # React contexts
-│   │   │   ├── AuthContext.tsx              # Token management (access_token) 🆕
+│   │   │   ├── AuthContext.tsx              # JWT token management
 │   │   │   └── RealtimeContext.tsx          # WebSocket connection
 │   │   ├── services/        # API service layers
 │   │   │   ├── adminService.ts
 │   │   │   ├── authService.ts
-│   │   │   ├── billingService.ts            # Updated for 1-month cycles
-│   │   │   ├── customerService.ts           # Subscription sync
-│   │   │   └── api.ts                       # Token manager (access_token)
+│   │   │   ├── billingService.ts
+│   │   │   ├── customerService.ts
+│   │   │   ├── webSocketService.ts          # Real-time updates
+│   │   │   └── api.ts                       # Axios instance with interceptors
 │   │   ├── types/           # TypeScript interfaces
 │   │   │   └── index.ts
 │   │   └── utils/           # Utility functions
@@ -396,49 +408,55 @@ Quest/
 │   └── package.json         # Frontend dependencies
 ├── server/                   # Node.js Backend (Port: 5001)
 │   ├── controllers/         # Request handlers
-│   │   ├── feedbackController.js            # Support ticket operations 🆕
-│   │   ├── adminController.js
-│   │   ├── authController.js
-│   │   ├── billingController.js
-│   │   ├── customerController.js            # Subscription sync logic 🆕
-│   │   ├── paymentController.js
-│   │   └── subscriptionController.js
+│   │   ├── authController.js                # Enhanced with password reset 🆕
+│   │   ├── adminController.js               # Dashboard stats with export
+│   │   ├── feedbackController.js            # Support ticket operations
+│   │   ├── billingController.js             # Invoice management
+│   │   ├── customerController.js            # Subscription operations
+│   │   ├── usageController.js               # Usage tracking & alerts
+│   │   ├── paymentController.js             # Razorpay integration
+│   │   └── notificationController.js        # Email notifications
 │   ├── models/              # MongoDB schemas
-│   │   ├── Feedback.js                      # Support ticket schema 🆕
-│   │   ├── User.js
-│   │   ├── Plan.js
-│   │   ├── Subscription.js
-│   │   ├── Billing.js
-│   │   ├── BillingInvoice.js
-│   │   ├── Usage.js
-│   │   ├── UsageAnalytics.js
-│   │   └── AuditLog.js
+│   │   ├── User.js                          # User with password reset fields 🆕
+│   │   ├── Feedback.js                      # Support ticket schema
+│   │   ├── Plan.js                          # Plan pricing (source of truth)
+│   │   ├── Subscription.js                  # User subscriptions
+│   │   ├── BillingInvoice.js                # Invoice records
+│   │   ├── Payment.js                       # Payment transactions
+│   │   ├── UsageLog.js                      # Daily usage tracking
+│   │   └── UsageAnalytics.js                # Usage statistics
 │   ├── routes/              # API route definitions
-│   │   ├── feedback.js                      # Support ticket routes 🆕
-│   │   ├── pdf.js                           # Invoice PDF with user data 🆕
-│   │   ├── admin.js
-│   │   ├── auth.js
-│   │   ├── billing.js
-│   │   ├── customer.js                      # Updated subscription endpoints
-│   │   ├── subscriptions.js                 # Pricing sync routes
-│   │   └── analytics.js
+│   │   ├── auth.js                          # Auth + password reset 🆕
+│   │   ├── billing.js                       # Billing + CSV export 🆕
+│   │   ├── usage.js                         # Usage + CSV export 🆕
+│   │   ├── pdf.js                           # Dynamic invoice PDFs
+│   │   ├── feedback.js                      # Support ticket routes
+│   │   ├── admin.js                         # Admin operations
+│   │   ├── customer.js                      # Customer operations
+│   │   ├── notificationRoutes.js            # Email notifications
+│   │   └── analytics.js                     # Analytics endpoints
 │   ├── middleware/          # Custom middleware
-│   │   ├── auth.js                          # authenticateToken & authorize 🆕
-│   │   └── errorHandler.js                  # asyncHandler export
+│   │   ├── auth.js                          # JWT authentication
+│   │   ├── errorHandler.js                  # Error handling
+│   │   └── dbHealthCheck.js                 # Database monitoring
 │   ├── services/            # Business logic services
-│   │   ├── billingService.js                # 1-month billing logic 🆕
-│   │   ├── emailService.js                  # Support notifications
-│   │   └── realTimeEvents.js                # WebSocket event emission
+│   │   ├── emailService.js                  # Email with 8 templates 🆕
+│   │   ├── billingService.js                # Billing calculations
+│   │   ├── usageService.js                  # Usage aggregation
+│   │   ├── PDFService.js                    # Invoice generation
+│   │   └── SchedulerService.js              # Automated reminders
+│   ├── utils/               # Utility functions
+│   │   ├── csvExport.js                     # CSV generation utility 🆕
+│   │   ├── errorResponse.js                 # Error formatting
+│   │   └── realTimeEvents.js                # WebSocket events
 │   ├── config/              # Configuration
 │   │   └── db.js                            # MongoDB Atlas connection
-│   ├── utils/               # Utility functions
-│   │   └── errorResponse.js
-│   ├── .env                 # Environment variables
-│   ├── server.js            # Main server file with Socket.io
+│   ├── .env                 # Environment variables 🆕
+│   ├── server.js            # Main server with Socket.io
 │   └── package.json         # Backend dependencies
 ├── docs/                    # Project documentation
-├── SubscriptionUseCase_Dataset.xlsx  # Sample data for testing
-├── README.md                # This file
+│   └── email-setup.md       # Email configuration guide 🆕
+├── README.md                # This file (updated) 🆕
 └── .gitignore              # Git ignore rules
 ```
 
@@ -448,8 +466,9 @@ Quest/
 
 ### **Prerequisites**
 - **Node.js 18+** 
-- **MongoDB Atlas account** (or local MongoDB)
-- **Stripe account** for payment processing
+- **MongoDB Atlas account** (Required - no local fallback)
+- **Gmail account** for email notifications (or SendGrid/Mailgun)
+- **Razorpay account** for payment processing
 - **npm or yarn**
 
 ### **Installation & Setup**
@@ -461,31 +480,40 @@ Quest/
    ```
 
 2. **Environment Configuration**
-   Copy and configure the environment variables:
-   ```bash
-   # Copy the unified environment template
-   cp .env.example .env
-   ```
    
-   Edit the `.env` file with your configuration:
+   Edit the root `.env` file with your configuration:
    ```env
    # Application Configuration
    NODE_ENV=development
    PORT=5001
    CLIENT_URL=http://localhost:3000
    
-   # Database Configuration
-   MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/broadbandx
+   # Database Configuration (MongoDB Atlas ONLY)
+   MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/broadband-subscription-db
    
    # Security Configuration
    JWT_SECRET=your-super-secret-jwt-key-here
    JWT_REFRESH_SECRET=your-super-secret-refresh-key-here
+   JWT_EXPIRE=24h
+   JWT_REFRESH_EXPIRE=7d
    
-   # Payment Integration
+   # Email Configuration (Gmail SMTP)
+   EMAIL_HOST=smtp.gmail.com
+   EMAIL_PORT=587
+   EMAIL_USER=your-email@gmail.com
+   EMAIL_PASS=your-16-char-app-password
+   EMAIL_FROM="BroadbandX" <noreply@broadbandx.com>
+   
+   # Payment Integration (Razorpay)
+   RAZORPAY_KEY_ID=rzp_test_your_key_id
+   RAZORPAY_KEY_SECRET=your_razorpay_secret_key
+   
+   # Stripe (Alternative - Optional)
    STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
    STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key
+   ```
    
-   # Frontend Configuration
+   **📧 Email Setup Guide**: See [docs/email-setup.md](docs/email-setup.md) for detailed Gmail app password instructions
    REACT_APP_API_URL=http://localhost:5001/api
    REACT_APP_STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key
    REACT_APP_SOCKET_URL=http://localhost:5001
@@ -551,46 +579,180 @@ Quest/
 └── .gitignore              # Git ignore rules
 ```
 
+3. **Install Dependencies**
+   
+   **Backend:**
+   ```bash
+   cd server
+   npm install
+   ```
+   
+   **Frontend:**
+   ```bash
+   cd client
+   npm install
+   ```
+
+4. **Database Setup**
+   
+   The system uses MongoDB Atlas exclusively. Create a database named `broadband-subscription-db` and update the `MONGO_URI` in `.env`.
+   
+   **Seed Sample Data** (Optional):
+   ```bash
+   cd server
+   node seedDatabase.js
+   ```
+   
+   This creates:
+   - **Admin**: admin@broadbandx.com / password: admin123
+   - **Customers**: Multiple test users with subscriptions
+   - **Plans**: Enterprise plans with various tiers
+   - **Usage Data**: Sample bandwidth usage logs
+
+5. **Start the Application**
+   
+   **Backend** (Terminal 1):
+   ```bash
+   cd server
+   node server.js
+   ```
+   Server runs on: http://localhost:5001
+   
+   **Frontend** (Terminal 2):
+   ```bash
+   cd client
+   npm start
+   ```
+   Frontend runs on: http://localhost:3000
+
+6. **Access the Application**
+   
+   - **Customer Portal**: http://localhost:3000/login
+   - **Admin Portal**: http://localhost:3000/login (Admin tab)
+   - **Password Reset**: http://localhost:3000/forgot-password
+   
+   **Test Credentials**:
+   - Admin: admin@broadbandx.com / admin123
+   - Customer: Use any seeded customer or register new
+
 ### **🔧 Available Scripts**
 
 #### **Server Scripts**
 ```bash
-npm start          # Start production server
-npm run dev        # Start development server with nodemon
-npm run build      # Build TypeScript to JavaScript
-npm run seed       # Populate database with consolidated sample data
-npm run docker:build  # Build Docker image
-npm run docker:run    # Run Docker container (Port: 5001)
+node server.js              # Start production server
+npm run dev                 # Start with nodemon (auto-reload)
+node seedDatabase.js        # Populate database with sample data
 ```
 
 #### **Client Scripts**
 ```bash
-npm start          # Start development server
-npm run build      # Build for production
-npm run eject      # Eject from Create React App (if needed)
+npm start                   # Start development server (port 3000)
+npm run build               # Build for production
+npm test                    # Run tests
 ```
 
-### **🗄️ Database Schema & Sample Data**
+### **📧 Email Configuration**
 
-The consolidated seeder (`npm run seed`) creates:
+For password reset and notifications to work:
 
-#### **Sample Users**
-- **Admin**: admin@flexisub.com / Admin@123
-- **Customer**: customer@example.com / password123
-- **Support Agent**: support@flexisub.com / Support@123
+1. **Gmail Setup** (Recommended for development):
+   - Enable 2-Step Verification on your Gmail account
+   - Generate App Password: https://myaccount.google.com/apppasswords
+   - Update `.env`:
+     ```env
+     EMAIL_USER=your-email@gmail.com
+     EMAIL_PASS=your-16-char-app-password
+     ```
 
-#### **Subscription Plans**
-- **Basic Plan**: $29.99/month - 100GB data, 50 Mbps
-- **Standard Plan**: $49.99/month - 250GB data, 100 Mbps  
-- **Premium Plan**: $79.99/month - 500GB data, 200 Mbps
-- **Enterprise Plan**: $129.99/month - Unlimited data, 500 Mbps
+2. **Detailed Guide**: See [docs/email-setup.md](docs/email-setup.md)
 
-#### **Sample Data**
-- User profiles with realistic subscription history
-- Billing records and payment transactions
-- Usage analytics and performance metrics
+3. **Alternative Providers**:
+   - **SendGrid**: Professional email service with free tier
+   - **Mailgun**: Developer-friendly email API
+   - **AWS SES**: AWS Simple Email Service
 
-### **🆕 Real-Time Features Testing**
+### **📊 CSV Export Feature**
+
+Export data for analysis and reporting:
+
+**Customer Access:**
+- **Invoices**: Billing Dashboard → "Export CSV" button
+- **Usage Data**: Usage Analytics Modal → "Export CSV" button
+
+**Admin Access:**
+- **All Invoices**: Admin Dashboard → "Export All Invoices" button
+- **All Usage**: Admin Dashboard → "Export All Usage" button
+
+Exports include:
+- Invoices: ID, date, customer, amount, status, payment method
+- Usage: Date, data (up/down/total), speed metrics, plan details
+
+### **🗄️ Database Schema**
+
+The system uses the following collections:
+
+#### **Users**
+- Authentication and profile information
+- Role-based access (customer/admin)
+- Password reset tokens and expiration
+
+#### **Plans**
+- Subscription plans (source of truth for pricing)
+- Speed tiers and data limits
+- Feature lists
+
+#### **Subscriptions**
+- User subscription records
+- Active/cancelled status
+- Billing cycle dates
+
+#### **Payments**
+- Razorpay transaction records
+- Payment status and methods
+- Invoice linkage
+
+#### **UsageLogs**
+- Daily bandwidth usage tracking
+- Upload/download separation
+- Speed metrics
+
+#### **BillingInvoices**
+- Invoice generation records
+- PDF download links
+- Payment status
+
+#### **Feedback**
+- Support ticket system
+- Admin responses
+- Sentiment analysis
+
+### **🆕 Key Features Testing**
+
+#### **Password Reset Flow**
+1. Go to http://localhost:3000/forgot-password
+2. Enter your email address
+3. Check email for reset link (valid 10 minutes)
+4. Click link → redirects to reset page
+5. Enter new password → Success!
+
+#### **Real-Time Updates**
+1. Open customer dashboard in 2 tabs
+2. Create/cancel subscription in one tab
+3. Watch instant updates in the other tab
+4. Toast notifications appear automatically
+
+#### **CSV Export**
+1. Login as admin or customer
+2. Navigate to billing/usage section
+3. Click "Export CSV" button
+4. File downloads automatically with current date
+
+#### **Support Tickets**
+1. Customer creates ticket in Support Center
+2. Admin sees ticket in Feedback Management
+3. Admin responds with comment
+4. Customer sees response in real-time
+5. Email notification sent (if configured)
 ## 🔮 **Learning Outcomes & Technical Skills**
 
 ### 💻 **Full-Stack Development**

@@ -9,6 +9,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { RealtimeProvider } from './contexts/RealtimeContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
+import { InactivityHandler } from './components/InactivityHandler';
 
 // Import pages
 import HomePage from './pages/HomePage';
@@ -83,6 +84,7 @@ function App() {
       <AuthProvider>
         <RealtimeProvider>
           <Router>
+          <InactivityHandler />
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<HomePage />} />
