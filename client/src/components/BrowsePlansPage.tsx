@@ -47,10 +47,13 @@ const BrowsePlansPage: React.FC = () => {
       setPlans(activePlans);
       
       // Set user subscriptions
-      setUserSubscriptions(subscriptionsResponse.subscriptions || []);
+      const userSubs = subscriptionsResponse.subscriptions || [];
+      setUserSubscriptions(userSubs);
       
       console.log(`✅ ${activePlans.length} active plans loaded`);
-      console.log(`👤 ${subscriptionsResponse.subscriptions?.length || 0} user subscriptions found`);
+      console.log(`👤 ${userSubs.length} user subscriptions found`);
+      console.log('📊 User subscriptions details:', userSubs);
+      console.log('🔍 Has active subscription?', userSubs.some((sub: any) => sub.status === 'active'));
     } catch (err: any) {
       console.error('❌ Error fetching data:', err);
       const errorMessage = handleApiError(err);
@@ -63,7 +66,13 @@ const BrowsePlansPage: React.FC = () => {
   const handleSelectPlan = (plan: any) => {
     console.log('📦 Plan selected:', plan);
     
-    // Check if user already has this plan
+    // Check if user already has ANY active subscription
+    if (hasAnyActiveSubscription()) {
+      alert('⚠️ You already have an active subscription. You can only have one plan at a time. Please cancel your current subscription first.');
+      return;
+    }
+    
+    // Check if user already has this specific plan
     if (isPlanAlreadyTaken(plan._id)) {
       alert('You already have an active subscription to this plan.');
       return;
@@ -143,6 +152,18 @@ const BrowsePlansPage: React.FC = () => {
         </Typography>
         <Divider sx={{ width: '100px', mx: 'auto', bgcolor: '#1976d2', height: 3 }} />
       </Box>
+
+      {/* Warning Alert for Active Subscriptions */}
+      {hasAnyActiveSubscription() && (
+        <Alert severity="warning" sx={{ mb: 4 }}>
+          <Typography variant="body1" sx={{ fontWeight: 'bold', mb: 1 }}>
+            ⚠️ You already have an active subscription
+          </Typography>
+          <Typography variant="body2">
+            You can only have one plan at a time. To switch plans, please cancel your current subscription first from the "My Subscriptions" section.
+          </Typography>
+        </Alert>
+      )}
 
       {plans.length === 0 ? (
         <Alert severity="info">

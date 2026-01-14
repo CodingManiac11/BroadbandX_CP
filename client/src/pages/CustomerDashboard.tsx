@@ -212,6 +212,21 @@ const CustomerDashboard: React.FC = () => {
       averageSpeed = activeSubs[0].plan.features.speed.download;
     }
     
+    // Calculate next bill date from active subscriptions
+    let nextBillDate: string | undefined = undefined;
+    if (activeSubs.length > 0) {
+      // Find the earliest end date (next billing date)
+      const dates = activeSubs
+        .map(sub => sub.endDate)
+        .filter(date => date)
+        .map(date => new Date(date));
+      
+      if (dates.length > 0) {
+        const earliestDate = new Date(Math.min(...dates.map(d => d.getTime())));
+        nextBillDate = earliestDate.toISOString();
+      }
+    }
+    
     return {
       activeSubscriptions: activeSubs.length,
       monthlySpending: totalMonthlySpending || 0,
@@ -219,6 +234,7 @@ const CustomerDashboard: React.FC = () => {
       averageSpeed: Number(averageSpeed.toFixed(1)),
       upcomingBills: activeSubs.length,
       supportTickets: 0,
+      nextBillDate: nextBillDate,
     };
   };
 
@@ -346,6 +362,14 @@ const CustomerDashboard: React.FC = () => {
   };
 
   const handleSubscribe = (plan: Plan) => {
+    // Check if user already has an active subscription
+    const hasActiveSubscription = subscriptions.some(sub => sub.status === 'active');
+    
+    if (hasActiveSubscription) {
+      alert('⚠️ You already have an active subscription. You can only have one plan at a time. Please cancel your current subscription first from the "My Subscriptions" section.');
+      return;
+    }
+    
     setSelectedPlan(plan);
     setShowPaymentModal(true);
   };
@@ -605,11 +629,26 @@ const CustomerDashboard: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeSection]);
 
+    // Check if user has active subscription
+    const hasActiveSubscription = subscriptions.some(sub => sub.status === 'active');
+
     return (
       <Box>
         <Typography variant="h5" gutterBottom>
           Browse Available Plans
         </Typography>
+
+        {/* Warning Alert for Active Subscriptions */}
+        {hasActiveSubscription && (
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            <Typography variant="body1" sx={{ fontWeight: 'bold', mb: 1 }}>
+              ⚠️ You already have an active subscription
+            </Typography>
+            <Typography variant="body2">
+              You can only have one plan at a time. To switch plans, please cancel your current subscription first from the "My Subscriptions" section.
+            </Typography>
+          </Alert>
+        )}
         
         {sectionsLoading.plans ? (
           <Box display="flex" justifyContent="center" p={4}>
@@ -664,12 +703,14 @@ const CustomerDashboard: React.FC = () => {
                   </Box>
                   
                   <Button 
-                    variant="contained" 
+                    variant={hasActiveSubscription ? "outlined" : "contained"}
                     fullWidth
                     startIcon={<Add />}
                     onClick={() => handleSubscribe(plan)}
+                    disabled={hasActiveSubscription}
+                    color={hasActiveSubscription ? "warning" : "primary"}
                   >
-                    Subscribe Now
+                    {hasActiveSubscription ? 'Active Subscription Exists' : 'Subscribe Now'}
                   </Button>
                 </CardContent>
               </Card>
