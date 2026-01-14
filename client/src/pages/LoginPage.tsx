@@ -113,7 +113,8 @@ const LoginPage: React.FC = () => {
     setError('');
 
     const formData = isAdminLogin ? adminForm : customerForm;
-    console.log('Login form submission:', { isAdminLogin, email: formData.email });
+    const loginRole = isAdminLogin ? 'admin' : 'customer';
+    console.log('Login form submission:', { isAdminLogin, email: formData.email, role: loginRole });
 
     if (!formData.email || !formData.password) {
       setError('Please fill in all fields');
@@ -122,7 +123,7 @@ const LoginPage: React.FC = () => {
     }
 
     try {
-      console.log('Attempting login with:', formData.email);
+      console.log('Attempting login with:', formData.email, 'as', loginRole);
       
       // Clear any previous auth state before login
       if (isAuthenticated) {
@@ -132,7 +133,8 @@ const LoginPage: React.FC = () => {
         await new Promise(resolve => setTimeout(resolve, 200));
       }
       
-      await login(formData.email, formData.password);
+      // Pass the role to ensure portal-specific authentication
+      await login(formData.email, formData.password, loginRole);
       console.log('Login successful, checking auth state:', { 
         isAuthenticated, 
         user: user?.email,
@@ -153,7 +155,15 @@ const LoginPage: React.FC = () => {
       
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.message || 'Login failed. Please try again.');
+      const errorMessage = err.message || 'Login failed. Please try again.';
+      // Make error message more user-friendly for role mismatch
+      if (errorMessage.includes('Invalid credentials for')) {
+        setError(isAdminLogin 
+          ? 'Invalid admin credentials. Please use the Customer Login if you are a customer.'
+          : 'Invalid customer credentials. Please use the Admin Login if you are an admin.');
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }

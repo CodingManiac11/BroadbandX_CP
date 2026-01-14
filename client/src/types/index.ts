@@ -232,6 +232,7 @@ export interface ApiError {
 export interface LoginCredentials {
   email: string;
   password: string;
+  role?: 'customer' | 'admin'; // Optional role for portal-specific login
 }
 
 export interface RegisterData {

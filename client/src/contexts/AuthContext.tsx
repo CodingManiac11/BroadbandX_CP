@@ -6,7 +6,7 @@ import webSocketService from '../services/webSocketService';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, role?: 'customer' | 'admin') => Promise<void>;
   register: (userData: any) => Promise<void>;
   logout: () => Promise<void>;
   loading: boolean;
@@ -60,11 +60,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkAuth();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, role?: 'customer' | 'admin') => {
     try {
       setLoading(true);
       setError(null); // Clear any previous errors
-      console.log('Login attempt:', email);
+      console.log('Login attempt:', email, 'Role:', role);
       
       // Clear any existing tokens and user state first
       tokenManager.clearTokens();
@@ -75,7 +75,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('token'); // Legacy token key
       
       // Use the authService for login instead of direct fetch
-      const credentials: LoginCredentials = { email, password };
+      const credentials: LoginCredentials = { email, password, role };
       const authResponse = await authService.login(credentials);
       
       console.log('Login successful, received:', { 
