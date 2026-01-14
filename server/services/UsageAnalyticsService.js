@@ -132,9 +132,9 @@ class UsageAnalyticsService {
     });
 
     if (analytics) {
-      // Update existing analytics
+      // Update existing analytics (keep the same date - start of day)
       analytics.metrics = metrics;
-      analytics.date = new Date();
+      analytics.date = today; // Use start of day, not current timestamp
       await analytics.save();
       return { created: false, updated: true };
     } else {
@@ -142,7 +142,7 @@ class UsageAnalyticsService {
       analytics = await UsageAnalytics.create({
         user: userId,
         subscription: subscriptionId,
-        date: new Date(),
+        date: today, // Use start of day, not current timestamp
         metrics
       });
       return { created: true, updated: false };

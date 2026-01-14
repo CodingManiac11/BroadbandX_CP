@@ -24,7 +24,42 @@ const invoicesToCSV = (payments) => {
 };
 
 /**
- * Convert usage logs to CSV format
+ * Convert usage analytics (aggregated daily data) to CSV format
+ * This matches what users see on their usage analytics page
+ * @param {Array} usageAnalytics - Array of usage analytics objects
+ * @returns {String} CSV string
+ */
+const usageAnalyticsToCSV = (usageAnalytics) => {
+  const fields = [
+    { label: 'Date', value: (row) => new Date(row.date).toLocaleDateString() },
+    { label: 'Customer Name', value: (row) => `${row.user?.firstName || ''} ${row.user?.lastName || ''}`.trim() || 'N/A' },
+    { label: 'Customer Email', value: 'user.email' },
+    { label: 'Plan Name', value: 'subscription.plan.name' },
+    { label: 'Data Used (GB)', value: (row) => ((row.metrics?.dataUsed || 0) / 1024).toFixed(2) },
+    { label: 'Avg Download Speed (Mbps)', value: (row) => {
+      const speedTests = row.metrics?.speedTests || [];
+      if (speedTests.length === 0) return '0.00';
+      const avg = speedTests.reduce((sum, test) => sum + (test.downloadSpeed || 0), 0) / speedTests.length;
+      return avg.toFixed(2);
+    }},
+    { label: 'Avg Upload Speed (Mbps)', value: (row) => {
+      const speedTests = row.metrics?.speedTests || [];
+      if (speedTests.length === 0) return '0.00';
+      const avg = speedTests.reduce((sum, test) => sum + (test.uploadSpeed || 0), 0) / speedTests.length;
+      return avg.toFixed(2);
+    }},
+    { label: 'Total Sessions', value: 'metrics.sessionMetrics.totalSessions' },
+    { label: 'Avg Session Duration (min)', value: (row) => (row.metrics?.sessionMetrics?.avgSessionDuration || 0).toFixed(2) },
+    { label: 'Uptime (%)', value: (row) => (row.metrics?.qualityMetrics?.uptime || 100).toFixed(2) },
+    { label: 'Packet Loss (%)', value: (row) => (row.metrics?.qualityMetrics?.packetLoss || 0).toFixed(2) }
+  ];
+
+  const parser = new Parser({ fields });
+  return parser.parse(usageAnalytics);
+};
+
+/**
+ * Convert usage logs (detailed session logs) to CSV format
  * @param {Array} usageLogs - Array of usage log objects
  * @returns {String} CSV string
  */
@@ -34,9 +69,9 @@ const usageLogsToCSV = (usageLogs) => {
     { label: 'Customer Name', value: (row) => `${row.userId?.firstName || ''} ${row.userId?.lastName || ''}`.trim() || 'N/A' },
     { label: 'Customer Email', value: 'userId.email' },
     { label: 'Device Type', value: 'deviceType' },
-    { label: 'Download (GB)', value: (row) => ((row.download || 0) / 1024).toFixed(2) },
-    { label: 'Upload (GB)', value: (row) => ((row.upload || 0) / 1024).toFixed(2) },
-    { label: 'Total (GB)', value: (row) => (((row.download || 0) + (row.upload || 0)) / 1024).toFixed(2) },
+    { label: 'Download (GB)', value: (row) => ((row.download || 0) / (1024 * 1024 * 1024)).toFixed(2) },
+    { label: 'Upload (GB)', value: (row) => ((row.upload || 0) / (1024 * 1024 * 1024)).toFixed(2) },
+    { label: 'Total (GB)', value: (row) => (((row.download || 0) + (row.upload || 0)) / (1024 * 1024 * 1024)).toFixed(2) },
     { label: 'Download Speed (Mbps)', value: (row) => (row.downloadSpeed || 0).toFixed(2) },
     { label: 'Upload Speed (Mbps)', value: (row) => (row.uploadSpeed || 0).toFixed(2) },
     { label: 'Session Duration (min)', value: (row) => row.sessionDuration || 0 }
@@ -96,6 +131,7 @@ const usersToCSV = (users) => {
 
 module.exports = {
   invoicesToCSV,
+  usageAnalyticsToCSV,
   usageLogsToCSV,
   subscriptionsToCSV,
   usersToCSV

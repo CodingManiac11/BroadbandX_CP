@@ -20,11 +20,11 @@ const UsageLogSchema = new mongoose.Schema({
     default: Date.now,
   },
   download: {
-    type: Number,  // in MB
+    type: Number,  // in bytes
     required: true,
   },
   upload: {
-    type: Number,  // in MB
+    type: Number,  // in bytes
     required: true,
   },
   downloadSpeed: {

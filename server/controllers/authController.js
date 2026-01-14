@@ -225,46 +225,63 @@ const logout = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/forgot-password
 // @access  Public
 const forgotPassword = asyncHandler(async (req, res) => {
-  const { email } = req.body;
-
-  const user = await User.findByEmail(email);
-  if (!user) {
-    return res.status(404).json({
-      status: 'error',
-      message: 'No user found with this email'
-    });
-  }
-
-  // Generate reset token
-  const resetToken = crypto.randomBytes(32).toString('hex');
-  user.passwordResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-  user.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
-
-  await user.save({ validateBeforeSave: false });
-
-  // Send password reset email
-  const resetURL = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
-  
   try {
-    await emailService.sendPasswordResetEmail(user.email, {
-      name: `${user.firstName} ${user.lastName}`,
-      resetURL,
-      expiresIn: '10 minutes'
-    });
-    
-    res.status(200).json({
-      status: 'success',
-      message: 'Password reset link sent to your email'
-    });
-  } catch (emailError) {
-    console.error('Failed to send password reset email:', emailError);
-    user.passwordResetToken = undefined;
-    user.passwordResetExpires = undefined;
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Email is required'
+      });
+    }
+
+    const user = await User.findByEmail(email);
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'No user found with this email'
+      });
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    user.passwordResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    user.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
     await user.save({ validateBeforeSave: false });
+
+    // Send password reset email
+    const resetURL = `${process.env.CLIENT_URL || 'http://localhost:3000'}/reset-password/${resetToken}`;
     
+    try {
+      await emailService.sendPasswordResetEmail(user.email, {
+        name: `${user.firstName} ${user.lastName}`,
+        resetURL,
+        expiresIn: '10 minutes'
+      });
+      
+      res.status(200).json({
+        status: 'success',
+        message: 'Password reset link sent to your email'
+      });
+    } catch (emailError) {
+      console.error('Failed to send password reset email:', emailError);
+      user.passwordResetToken = undefined;
+      user.passwordResetExpires = undefined;
+      await user.save({ validateBeforeSave: false });
+      
+      return res.status(500).json({
+        status: 'error',
+        message: 'Email service is currently unavailable. Please try again later or contact support.',
+        error: emailError.message
+      });
+    }
+  } catch (error) {
+    console.error('Forgot password error:', error);
     return res.status(500).json({
       status: 'error',
-      message: 'Failed to send password reset email. Please try again later.'
+      message: 'An error occurred while processing your request',
+      error: error.message
     });
   }
 });

@@ -2,7 +2,6 @@ const User = require('../models/User');
 const Plan = require('../models/Plan');
 const Subscription = require('../models/Subscription');
 const UsageAnalytics = require('../models/UsageAnalytics');
-const UsageLog = require('../models/UsageLog');
 
 // Customer dashboard stats
 exports.getCustomerStats = async (req, res) => {
@@ -39,51 +38,40 @@ exports.getCustomerStats = async (req, res) => {
       return total + (sub.pricing?.basePrice || sub.pricing?.totalAmount || 0);
     }, 0);
 
-    // Get usage statistics from UsageLog - use subscription start date as filter
-    // This ensures we only show usage since the user's subscription started
-    const subscriptionStartDate = subscriptions.length > 0 
-      ? new Date(subscriptions[0].startDate || subscriptions[0].createdAt)
-      : new Date();
+    // Get usage analytics for current month
+    const currentDate = new Date();
+    const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
     
-    const usageStats = await UsageLog.aggregate([
+    const usageStats = await UsageAnalytics.aggregate([
       {
         $match: {
-          userId: userId,
-          timestamp: { $gte: subscriptionStartDate }
+          user: userId,
+          date: { $gte: startOfMonth }
         }
       },
       {
         $group: {
           _id: null,
-          totalDownload: { $sum: '$download' },
-          totalUpload: { $sum: '$upload' },
-          sessionCount: { $sum: 1 }
+          totalDataUsage: { $sum: '$dataUsed' },
+          avgDownloadSpeed: { $avg: '$downloadSpeed' }
         }
       }
     ]);
 
-    // Convert bytes to GB
-    const totalDataUsage = usageStats.length > 0 
-      ? ((usageStats[0].totalDownload + usageStats[0].totalUpload) / (1024 * 1024 * 1024))
-      : 0;
-    
-    // Calculate average speed (placeholder - could be enhanced with actual speed data)
-    const averageSpeed = usageStats.length > 0 ? 87.3 : 0;
+    const totalDataUsage = usageStats.length > 0 ? usageStats[0].totalDataUsage : 0;
+    const averageSpeed = usageStats.length > 0 ? usageStats[0].avgDownloadSpeed : 0;
 
-    // Get next bill date from active subscription's endDate
-    let nextBillDate = null;
-    if (subscriptions.length > 0) {
-      // Use the earliest endDate from active subscriptions
-      nextBillDate = subscriptions.reduce((earliest, sub) => {
-        const subEndDate = new Date(sub.endDate || sub.nextBillingDate);
-        return !earliest || subEndDate < earliest ? subEndDate : earliest;
-      }, null);
-    }
+    // Count upcoming bills (due in next 30 days)
+    // Calculate next bill date correctly (3rd of next month)
+    const nextBillDate = new Date();
+    nextBillDate.setMonth(nextBillDate.getMonth() + 1);
+    nextBillDate.setDate(3);
+    nextBillDate.setHours(0, 0, 0, 0);
 
     console.log('  📊 Customer Stats Summary:');
     console.log('    Active Subscriptions:', activeSubscriptions);
     console.log('    Monthly Spending: ₹' + monthlySpending);
-    console.log('    Next Bill Date:', nextBillDate ? nextBillDate.toDateString() : 'N/A');
+    console.log('    Next Bill Date:', nextBillDate.toDateString());
 
     res.json({
       success: true,
@@ -94,7 +82,7 @@ exports.getCustomerStats = async (req, res) => {
         averageSpeed: Math.round(averageSpeed * 100) / 100,
         upcomingBills: activeSubscriptions, // For simplicity, assuming each subscription has a monthly bill
         supportTickets: 0, // Placeholder for support tickets feature
-        nextBillDate: nextBillDate ? nextBillDate.toISOString().split('T')[0] : null,
+        nextBillDate: nextBillDate.toISOString().split('T')[0],
         amountDue: monthlySpending
       }
     });
@@ -134,34 +122,6 @@ exports.getCustomerSubscriptions = async (req, res) => {
       // Removed status filter to see all subscriptions
     }).populate('plan').sort({ createdAt: -1 });
     
-    // Populate payment history from Payment model if missing
-    const Payment = require('../models/Payment');
-    for (let sub of subscriptions) {
-      if (!sub.paymentHistory || sub.paymentHistory.length === 0) {
-        // Find payments for this subscription
-        const payments = await Payment.find({ 
-          subscription: sub._id,
-          status: 'captured'
-        }).sort({ createdAt: -1 });
-        
-        if (payments.length > 0) {
-          sub.paymentHistory = payments.map(p => ({
-            date: p.createdAt,
-            amount: p.amount,
-            paymentMethod: p.method || 'razorpay',
-            transactionId: p.razorpayPaymentId,
-            status: 'completed',
-            invoiceNumber: `INV-${p._id.toString().slice(-6).toUpperCase()}`,
-            notes: `Payment for ${sub.plan?.name || 'subscription'}`
-          }));
-          
-          // Save the subscription with payment history
-          await sub.save();
-          console.log(`  ✅ Populated payment history for subscription ${sub._id} with ${payments.length} payments`);
-        }
-      }
-    }
-    
     console.log('📊 SUBSCRIPTION RESULTS:');
     console.log('  🔢 Total subscriptions found:', subscriptions.length);
     subscriptions.forEach((sub, index) => {
@@ -174,44 +134,8 @@ exports.getCustomerSubscriptions = async (req, res) => {
         pricing: sub.pricing
       });
       
-      // Ensure planName is always set from plan document
-      if (sub.plan && sub.plan.name && !sub.planName) {
-        sub.planName = sub.plan.name;
-      }
-      
       // Fix pricing for all plans - NO TAX POLICY
       const currentPlanName = sub.plan?.name || sub.planName;
-      
-      // Use plan's actual pricing if subscription pricing is incorrect
-      if (sub.plan && sub.plan.pricing && sub.plan.pricing.monthly) {
-        const correctPrice = sub.plan.pricing.monthly;
-        
-        // If stored pricing is incorrect, override with plan's actual price
-        if (sub.pricing && Math.abs(sub.pricing.totalAmount - correctPrice) > 0.01) {
-          console.log(`  🔧 Correcting pricing for ${currentPlanName} from ₹${sub.pricing.totalAmount} to ₹${correctPrice}`);
-          sub.pricing = {
-            basePrice: correctPrice,
-            discountApplied: 0,
-            finalPrice: correctPrice,
-            totalAmount: correctPrice,
-            taxAmount: 0,
-            currency: 'INR'
-          };
-        }
-      }
-      
-      // Ensure billing cycle dates are correct (1 month for monthly plans)
-      if (sub.startDate && sub.billingCycle === 'monthly') {
-        const startDate = new Date(sub.startDate);
-        const correctEndDate = new Date(startDate);
-        correctEndDate.setMonth(correctEndDate.getMonth() + 1);
-        
-        // If endDate is incorrect, override it in the response
-        if (sub.endDate && Math.abs(new Date(sub.endDate) - correctEndDate) > 86400000) { // More than 1 day difference
-          console.log(`  🔧 Correcting endDate for ${currentPlanName} to ${correctEndDate.toISOString()}`);
-          sub.endDate = correctEndDate;
-        }
-      }
       
       if (currentPlanName === 'Basic Plan29') {
         console.log('  🔧 Fixing Basic Plan29 pricing in response...');

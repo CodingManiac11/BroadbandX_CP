@@ -48,8 +48,7 @@ router.get('/invoice/:invoiceId/download', [
     }
     
     // Check ownership
-    const userId = req.user._id || req.user.id;
-    if (invoice.subscription_id.customer_id._id.toString() !== userId.toString()) {
+    if (invoice.subscription_id.customer_id._id.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
@@ -116,8 +115,7 @@ router.get('/invoice/:invoiceId/preview', [
     }
     
     // Check ownership
-    const userId = req.user._id || req.user.id;
-    if (invoice.subscription_id.customer_id._id.toString() !== userId.toString()) {
+    if (invoice.subscription_id.customer_id._id.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
@@ -154,150 +152,45 @@ router.get('/invoice/:invoiceId/preview', [
  */
 router.get('/invoice/:invoiceId', async (req, res) => {
   try {
-    console.log(`📄 PDF Request for invoice ${req.params.invoiceId} - NO AUTH REQUIRED`);
-    console.log(`📄 userId from query:`, req.query.userId);
+    const invoiceId = req.params.invoiceId;
+    console.log(`📄 PDF Request for invoice ID: ${invoiceId}`);
+    console.log(`📄 Invoice ID type:`, typeof invoiceId);
+    console.log(`📄 Invoice ID length:`, invoiceId.length);
     
-    // Try to fetch actual subscription data from database
-    let invoice = null;
+    // Fetch real invoice from database
+    const Billing = require('../models/Billing');
     
-    try {
-      const Subscription = require('../models/Subscription');
-      const Payment = require('../models/Payment');
-      const User = require('../models/User');
-      const mongoose = require('mongoose');
-      
-      // Build query based on userId if provided
-      let query = { status: 'active' };
-      if (req.query.userId) {
-        // Convert string userId to ObjectId properly
-        try {
-          query.user = new mongoose.Types.ObjectId(req.query.userId);
-          console.log(`📄 Converted userId to ObjectId:`, query.user);
-        } catch (conversionError) {
-          console.log(`📄 ⚠️ Failed to convert userId to ObjectId:`, conversionError.message);
-          query.user = req.query.userId; // Fallback to string
-        }
-        console.log(`📄 Fetching subscription for userId: ${req.query.userId}`);
-      }
-      
-      console.log(`📄 Query object:`, JSON.stringify(query));
-      
-      // Find the user's active subscription
-      const subscription = await Subscription.findOne(query)
-        .populate('plan')
-        .populate('user')
-        .sort({ createdAt: -1 })
-        .limit(1);
-      
-      console.log(`📄 Found subscription:`, subscription ? {
-        plan: subscription.plan?.name,
-        user: subscription.user?.firstName + ' ' + subscription.user?.lastName,
-        email: subscription.user?.email,
-        price: subscription.pricing?.totalAmount
-      } : 'none');
-      
-      if (subscription) {
-        // Find payment for this subscription
-        const payment = await Payment.findOne({ 
-          subscription: subscription._id,
-          status: { $in: ['captured', 'authorized'] }
-        }).sort({ createdAt: -1 }).limit(1);
-        
-        console.log(`📄 Found payment:`, payment ? {
-          id: payment._id,
-          razorpayPaymentId: payment.razorpayPaymentId,
-          method: payment.method,
-          amount: payment.amount,
-          status: payment.status
-        } : 'none');
-        
-        if (payment) {
-          const planName = subscription.plan?.name || subscription.planName || 'Subscription';
-          // Use Plan's actual pricing first (correct price), fallback to subscription pricing if plan not populated
-          const planPrice = subscription.plan?.pricing?.monthly || subscription.pricing?.totalAmount || payment.amount || 0;
-          
-          // Calculate proper billing cycle dates
-          const startDate = new Date(subscription.startDate || subscription.createdAt);
-          const endDate = new Date(startDate);
-          if (subscription.billingCycle === 'yearly') {
-            endDate.setFullYear(endDate.getFullYear() + 1);
-          } else {
-            endDate.setMonth(endDate.getMonth() + 1);
-          }
-          
-          // Map payment method for display
-          const paymentMethodDisplay = payment.method || 'Razorpay';
-          const paymentGateway = 'Razorpay Payment Gateway';
-          
-          // Generate invoice number from payment/subscription ID
-          const invoiceNumber = payment.invoiceNumber || `INV-${payment._id.toString().slice(-8).toUpperCase()}`;
-          
-          invoice = {
-            id: req.params.invoiceId,
-            invoiceNumber: invoiceNumber,
-            amount: planPrice,
-            status: payment.status === 'captured' || payment.status === 'authorized' ? 'Paid' : 'Pending',
-            createdAt: payment.capturedAt || payment.createdAt || subscription.createdAt,
-            dueDate: endDate,
-            billingPeriod: {
-              start: startDate,
-              end: endDate
-            },
-            user: {
-              firstName: subscription.user?.firstName || 'Customer',
-              lastName: subscription.user?.lastName || '',
-              email: subscription.user?.email || 'customer@example.com'
-            },
-            subtotal: planPrice,
-            tax: 0,
-            total: planPrice,
-            items: [
-              { 
-                description: `${planName} ${subscription.billingCycle === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`, 
-                quantity: 1, 
-                amount: planPrice 
-              }
-            ],
-            paymentDate: payment.capturedAt || payment.createdAt,
-            transactionId: payment.razorpayPaymentId || payment._id.toString(),
-            paymentId: payment._id.toString(),
-            razorpayOrderId: payment.razorpayOrderId,
-            razorpayPaymentId: payment.razorpayPaymentId,
-            paymentMethod: {
-              type: paymentMethodDisplay,
-              gateway: paymentGateway,
-              details: payment.cardLast4 ? `****${payment.cardLast4}` : (payment.vpa || 'Online Payment')
-            }
-          };
-          
-          console.log(`📄 ✅ Generated invoice from actual subscription data for ${planName}`);
-        } else {
-          console.log(`📄 ⚠️ No payment found for subscription`);
-        }
-      } else {
-        console.log(`📄 ⚠️ No subscription found`);
-      }
-    } catch (dbError) {
-      console.log(`📄 ⚠️ Could not fetch from database:`, dbError.message);
-      console.log(`📄 Full error:`, dbError);
-    }
-    
-    // Check if we have invoice data
-    if (!invoice) {
-      console.log(`📄 ❌ No invoice data available - cannot generate PDF`);
-      return res.status(404).json({
+    // Check if valid MongoDB ObjectId
+    const mongoose = require('mongoose');
+    if (!mongoose.Types.ObjectId.isValid(invoiceId)) {
+      console.log(`❌ Invalid MongoDB ObjectId: ${invoiceId}`);
+      return res.status(400).json({
         success: false,
-        message: 'Invoice not found. Please ensure you have an active subscription with payment history.',
-        error: 'NO_SUBSCRIPTION_DATA'
+        message: 'Invalid invoice ID format'
       });
     }
     
-    console.log(`📄 Final invoice data:`, {
-      user: `${invoice.user.firstName} ${invoice.user.lastName}`,
-      email: invoice.user.email,
-      plan: invoice.items[0].description,
-      amount: invoice.amount
-    });
+    const invoice = await Billing.findById(invoiceId).populate('user', 'firstName lastName email');
+    
+    console.log(`📄 Database query completed`);
+    console.log(`📄 Found invoice:`, invoice ? 'Yes' : 'No');
+    
+    if (invoice) {
+      console.log(`📄 Invoice details:`, {
+        id: invoice._id,
+        invoiceNumber: invoice.invoiceNumber,
+        status: invoice.status,
+        user: invoice.user
+      });
+    }
+    
+    if (!invoice) {
+      console.log(`❌ Invoice not found in database for ID: ${invoiceId}`);
+      return res.status(404).json({
+        success: false,
+        message: 'Invoice not found'
+      });
+    }
     
     // Only allow PDF generation for paid invoices
     if (invoice.status.toLowerCase() !== 'paid') {
@@ -309,22 +202,69 @@ router.get('/invoice/:invoiceId', async (req, res) => {
       });
     }
     
-    console.log(`📄 ✅ Access granted - Invoice status: ${invoice.status}`);
+    console.log(`📄 ✅ Access granted - Generating PDF for invoice: ${invoice.invoiceNumber}`);
+    
+    // Get subscription for payment history
+    const Subscription = require('../models/Subscription');
+    const subscription = await Subscription.findById(invoice.subscription);
+    
+    // Find matching payment from subscription payment history
+    let realPaymentData = null;
+    if (subscription && subscription.paymentHistory && subscription.paymentHistory.length > 0) {
+      // Find the payment matching this invoice
+      realPaymentData = subscription.paymentHistory.find(p => 
+        p.invoiceNumber === invoice.invoiceNumber || 
+        Math.abs(p.amount - invoice.total) < 0.01 // Match by amount if invoice number doesn't match
+      );
+      
+      // If not found by invoice/amount, use the most recent completed payment
+      if (!realPaymentData) {
+        realPaymentData = subscription.paymentHistory
+          .filter(p => p.status === 'completed')
+          .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+      }
+    }
+    
+    // Transform invoice to match expected format
+    const invoiceData = {
+      id: invoice._id,
+      invoiceNumber: invoice.invoiceNumber,
+      amount: invoice.total,
+      status: invoice.status,
+      createdAt: invoice.createdAt,
+      dueDate: invoice.dueDate,
+      billingPeriod: invoice.billingPeriod,
+      user: {
+        firstName: invoice.user?.firstName || 'Customer',
+        lastName: invoice.user?.lastName || '',
+        email: invoice.user?.email || ''
+      },
+      subtotal: invoice.subtotal,
+      tax: invoice.tax,
+      discount: invoice.discount || 0,
+      total: invoice.total,
+      items: invoice.items || [],
+      // Use real payment data if available, otherwise fall back to invoice data
+      paymentDate: realPaymentData?.date || invoice.paymentDate,
+      transactionId: realPaymentData?.transactionId || invoice.transactionId,
+      paymentMethod: realPaymentData ? {
+        type: realPaymentData.paymentMethod || 'card',
+        last4: realPaymentData.paymentMethod === 'card' ? '****' : null
+      } : invoice.paymentMethod,
+      paymentNotes: realPaymentData?.notes
+    };
     
     // Generate HTML invoice
-    const htmlContent = generateInvoiceHTML(invoice);
+    const htmlContent = generateInvoiceHTML(invoiceData);
     
     // Check if client wants HTML or PDF
     const acceptHeader = req.headers.accept || '';
     const wantsPDF = req.query.format === 'pdf' || acceptHeader.includes('application/pdf');
     
-    // Set CSP header using both hashes
-    res.setHeader('Content-Security-Policy', "script-src 'self' 'sha256-JNEiJlItUNiAlsfJVS0RFOLQkr1ujMiUcTFLtccbJ4k=' 'sha256-6+HSeLxGbn7ayQLil7E1Whq7ey5zPTDuE0a0KEfz7Us='; style-src 'self' 'unsafe-inline'");
-    
     if (wantsPDF) {
       // For now, return HTML that can be printed to PDF
       res.setHeader('Content-Type', 'text/html');
-      res.setHeader('Content-Disposition', `inline; filename="Invoice-${invoice.invoiceNumber}.html"`);
+      res.setHeader('Content-Disposition', `inline; filename="Invoice-${invoiceData.invoiceNumber}.html"`);
       res.send(htmlContent);
     } else {
       // Return HTML for preview
@@ -333,7 +273,8 @@ router.get('/invoice/:invoiceId', async (req, res) => {
     }
     
   } catch (error) {
-    console.error('Invoice generation error:', error);
+    console.error('❌ Invoice generation error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Failed to generate invoice',
@@ -479,13 +420,9 @@ function generateInvoiceHTML(invoice) {
             cursor: pointer;
             font-size: 14px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            z-index: 9999;
         }
         .print-button:hover {
             background: #1565c0;
-        }
-        .print-button:active {
-            transform: scale(0.98);
         }
         @media print {
             body { margin: 0; }
@@ -494,7 +431,7 @@ function generateInvoiceHTML(invoice) {
     </style>
 </head>
 <body>
-    <button class="print-button" id="printBtn">Print / Save as PDF</button>
+    <button class="print-button" onclick="window.print()">Print / Save as PDF</button>
     
     <div class="header">
         <div class="company-info">
@@ -585,20 +522,35 @@ function generateInvoiceHTML(invoice) {
 
     <div style="clear: both;"></div>
     
-    ${invoice.status.toLowerCase() === 'paid' || invoice.paymentDate ? `
+    ${invoice.status === 'paid' ? `
     <div class="payment-info">
         <h4>Payment Information</h4>
-        <strong>Payment Status:</strong> ${invoice.status}<br>
-        ${invoice.paymentDate ? `<strong>Payment Date:</strong> ${new Date(invoice.paymentDate).toLocaleString('en-IN')}<br>` : ''}
-        ${invoice.paymentId ? `<strong>Payment ID:</strong> ${invoice.paymentId}<br>` : ''}
-        ${invoice.razorpayOrderId ? `<strong>Razorpay Order ID:</strong> ${invoice.razorpayOrderId}<br>` : ''}
-        ${invoice.razorpayPaymentId ? `<strong>Razorpay Payment ID:</strong> ${invoice.razorpayPaymentId}<br>` : ''}
-        ${invoice.transactionId ? `<strong>Transaction ID:</strong> ${invoice.transactionId}<br>` : ''}
-        ${invoice.paymentMethod ? `
-          <strong>Payment Method:</strong> ${invoice.paymentMethod.type || invoice.paymentMethod}<br>
-          ${invoice.paymentMethod.gateway ? `<strong>Payment Gateway:</strong> ${invoice.paymentMethod.gateway}<br>` : ''}
-          ${invoice.paymentMethod.details ? `<strong>Payment Details:</strong> ${invoice.paymentMethod.details}<br>` : ''}
-        ` : ''}
+        <strong>Payment Date:</strong> ${invoice.paymentDate ? new Date(invoice.paymentDate).toLocaleDateString('en-IN', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric'
+        }) : 'N/A'}<br>
+        <strong>Payment Time:</strong> ${invoice.paymentDate ? new Date(invoice.paymentDate).toLocaleTimeString('en-IN', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true
+        }) : 'N/A'}<br>
+        <strong>Transaction ID:</strong> ${invoice.transactionId || 'N/A'}<br>
+        <strong>Payment Method:</strong> ${(() => {
+          const method = invoice.paymentMethod?.type || 'card';
+          const methodName = method === 'credit_card' ? 'Credit Card' : 
+                           method === 'debit_card' ? 'Debit Card' : 
+                           method === 'card' ? 'Card' : 
+                           method === 'bank_transfer' ? 'Bank Transfer' : 
+                           method === 'upi' ? 'UPI' : 
+                           method === 'netbanking' ? 'Net Banking' : 
+                           method === 'wallet' ? 'Wallet' : 
+                           'Online Payment';
+          const last4 = invoice.paymentMethod?.last4;
+          return last4 && last4 !== '****' ? `${methodName} ending in ${last4}` : methodName;
+        })()}<br>
+        ${invoice.paymentNotes ? `<strong>Payment Note:</strong> ${invoice.paymentNotes}<br>` : ''}
     </div>
     ` : ''}
     
@@ -613,15 +565,6 @@ function generateInvoiceHTML(invoice) {
         <p><strong>Thank you for your business!</strong></p>
         <p><small>This invoice was generated electronically. For questions, please contact customer support at billing@broadbandx.com</small></p>
     </div>
-    
-    <script>
-        const printBtn = document.getElementById('printBtn');
-        if (printBtn) {
-            printBtn.addEventListener('click', function() {
-                window.print();
-            });
-        }
-    </script>
 </body>
 </html>
   `;

@@ -169,12 +169,34 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     // Create Billing record for captured payment
     const Billing = require('../models/Billing');
     try {
+      console.log('💳 Creating billing record for payment:', razorpay_payment_id);
+      
       // Calculate billing period (1 month from now)
       const billingStart = new Date();
       const billingEnd = new Date(billingStart);
       billingEnd.setMonth(billingEnd.getMonth() + 1);
 
+      // Generate invoice number manually
+      const date = new Date();
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      
+      // Find the latest invoice number for the current month
+      const latestInvoice = await Billing.findOne({
+        invoiceNumber: new RegExp(`^INV-${year}${month}-`)
+      }).sort({ invoiceNumber: -1 });
+
+      let sequence = 1;
+      if (latestInvoice) {
+        const lastSequence = parseInt(latestInvoice.invoiceNumber.split('-')[2]);
+        sequence = lastSequence + 1;
+      }
+
+      const invoiceNumber = `INV-${year}${month}-${String(sequence).padStart(4, '0')}`;
+      console.log('📄 Generated invoice number:', invoiceNumber);
+
       const billingRecord = new Billing({
+        invoiceNumber,
         user: payment.user,
         subscription: payment.subscription,
         amount: payment.amount,
@@ -204,10 +226,18 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
       });
       
       await billingRecord.save();
-      console.log('✅ Created billing record:', billingRecord.invoiceNumber);
+      console.log('✅ Successfully created billing record:', billingRecord.invoiceNumber);
+      console.log('📊 Invoice details:', {
+        invoiceNumber: billingRecord.invoiceNumber,
+        userId: payment.user,
+        amount: payment.amount,
+        status: 'paid'
+      });
     } catch (billingError) {
-      console.error('❌ Error creating billing record:', billingError.message);
-      // Don't fail the payment if billing record creation fails
+      console.error('❌ CRITICAL: Failed to create billing record:', billingError);
+      console.error('❌ Error details:', billingError.message);
+      console.error('❌ Stack trace:', billingError.stack);
+      // Log but don't fail the payment - we can create it manually later if needed
     }
 
     // Check if this is a new subscription or existing one
@@ -306,32 +336,47 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
       // Update payment with subscription ID
       payment.subscription = subscription._id;
       await payment.save();
-
-      // Send welcome email with subscription details
-      try {
-        const emailService = require('../services/emailService');
-        const user = await User.findById(payment.user);
-        
-        if (user && user.email) {
-          await emailService.sendWelcomeEmail(user.email, {
-            customerName: `${user.firstName} ${user.lastName}`,
-            planName: plan.name,
-            speed: plan.features?.speed ? `${plan.features.speed.download} Mbps Download / ${plan.features.speed.upload} Mbps Upload` : 'As per plan',
-            data: plan.features?.data || 'Unlimited',
-            price: plan.pricing.monthly,
-            installationDate: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-          });
-          console.log('✅ Welcome email sent to:', user.email);
-        }
-      } catch (emailError) {
-        console.error('❌ Failed to send welcome email:', emailError.message);
-        // Don't fail the subscription if email fails
-      }
     } else if (subscription && subscription.status !== 'active') {
       // Update existing subscription status to active
       subscription.status = 'active';
       subscription.activatedAt = new Date();
       await subscription.save();
+    }
+
+    // Send welcome email after successful payment (for all subscriptions)
+    try {
+      const emailService = require('../services/emailService');
+      const user = await User.findById(payment.user);
+      
+      if (user && user.email && subscription) {
+        // Fetch plan details for email
+        const Plan = require('../models/Plan');
+        const planForEmail = await Plan.findById(subscription.plan);
+        
+        if (planForEmail) {
+          await emailService.sendWelcomeEmail(user.email, {
+            customerName: `${user.firstName} ${user.lastName}`,
+            planName: planForEmail.name,
+            speed: planForEmail.features?.speed ? `${planForEmail.features.speed.download} Mbps Download / ${planForEmail.features.speed.upload} Mbps Upload` : 'As per plan',
+            data: planForEmail.features?.data || 'Unlimited',
+            price: planForEmail.pricing.monthly,
+            installationDate: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+          });
+          console.log('✅ Welcome email sent to:', user.email);
+        } else {
+          console.log('⚠️ Plan not found for subscription, skipping welcome email');
+        }
+      } else {
+        console.log('⚠️ Email not sent - missing data:', {
+          hasUser: !!user,
+          hasEmail: !!(user && user.email),
+          hasSubscription: !!subscription
+        });
+      }
+    } catch (emailError) {
+      console.error('❌ Failed to send welcome email:', emailError);
+      console.error('Email error details:', emailError.message);
+      // Don't fail the subscription if email fails
     }
 
     // Emit real-time event if subscription exists

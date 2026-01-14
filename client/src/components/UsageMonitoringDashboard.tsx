@@ -51,66 +51,41 @@ const UsageMonitoringDashboard: React.FC = () => {
   const [timeRange, setTimeRange] = useState('7days');
   const [selectedMetric, setSelectedMetric] = useState('bandwidth');
 
-  // Mock data generation
+  // Fetch real usage data from API instead of generating mock data
   useEffect(() => {
-    const generateMockData = (): UsageData => {
-      const dailyUsage = Array.from({ length: 7 }).map((_, index) => {
-        const date = new Date();
-        date.setDate(date.getDate() - (6 - index));
-        return {
-          date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          download: Math.random() * 100 + 150,
-          upload: Math.random() * 50 + 50,
-          totalBandwidth: Math.random() * 150 + 200,
-        };
-      });
-
-      const monthlyUsage = Array.from({ length: 6 }).map((_, index) => {
-        const date = new Date();
-        date.setMonth(date.getMonth() - (5 - index));
-        return {
-          month: date.toLocaleDateString('en-US', { month: 'short' }),
-          download: Math.random() * 1000 + 2000,
-          upload: Math.random() * 500 + 1000,
-          totalBandwidth: Math.random() * 1500 + 3000,
-          limit: 5000,
-        };
-      });
-
-      const hourlyUsage = Array.from({ length: 24 }).map((_, index) => ({
-        hour: `${index.toString().padStart(2, '0')}:00`,
-        bandwidth: Math.random() * 50 + 50,
-        users: Math.floor(Math.random() * 20) + 10,
-      }));
-
-      const deviceDistribution = [
-        { name: 'Smartphones', value: 35, color: '#8884d8' },
-        { name: 'Laptops', value: 25, color: '#82ca9d' },
-        { name: 'Smart TVs', value: 20, color: '#ffc658' },
-        { name: 'Tablets', value: 15, color: '#ff7c7c' },
-        { name: 'Others', value: 5, color: '#a4de6c' },
-      ];
-
-      return {
-        dailyUsage,
-        monthlyUsage,
-        hourlyUsage,
-        deviceDistribution,
-        currentStats: {
-          downloadSpeed: 95.5,
-          uploadSpeed: 42.3,
-          latency: 15,
-          packetLoss: 0.2,
-          activeDevices: 8,
-          monthlyUsage: 2150,
-          monthlyLimit: 5000,
-          peakUsage: 98.5,
-          averageUsage: 65.2,
-        },
-      };
+    const fetchUsageData = async () => {
+      try {
+        const userId = localStorage.getItem('userId');
+        const token = localStorage.getItem('access_token');
+        
+        if (!userId || !token) {
+          console.error('Missing auth data for usage analytics');
+          return;
+        }
+        
+        // Fetch real usage analytics from the API
+        const response = await fetch(
+          `http://localhost:5001/api/customer/usage-analytics?userId=${userId}&timeRange=${timeRange}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          setUsageData(data);
+        } else {
+          console.error('Failed to fetch usage data:', response.statusText);
+        }
+      } catch (error) {
+        console.error('Error fetching usage data:', error);
+      }
     };
-
-    setUsageData(generateMockData());
+    
+    fetchUsageData();
   }, [timeRange]);
 
   if (!usageData) {

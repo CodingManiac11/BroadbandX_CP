@@ -1,13 +1,11 @@
 const nodemailer = require('nodemailer');
 
-// Create Nodemailer transporter using environment variables
+// Initialize Gmail SMTP transporter (100% Free!)
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: parseInt(process.env.EMAIL_PORT, 10),
-  secure: process.env.EMAIL_PORT === '465',
+  service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    pass: process.env.EMAIL_PASS, // This should be Gmail App Password
   },
 });
 
@@ -161,19 +159,19 @@ const sendTemplatedEmail = async (to, templateName, data) => {
   const template = EMAIL_TEMPLATES[templateName];
   const subject = typeof template.subject === 'function' ? template.subject(data.ticketNumber) : template.subject;
 
-  const mailOptions = {
-    from: process.env.EMAIL_FROM,
-    to,
-    subject,
-    html: template.template(data),
-  };
-
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Email sent:', info.messageId);
-    return info;
+    const mailOptions = {
+      from: `"BroadbandX" <${process.env.EMAIL_USER}>`, // Gmail sender
+      to: to,
+      subject: subject,
+      html: template.template(data),
+    };
+    
+    const result = await transporter.sendMail(mailOptions);
+    console.log('✅ Email sent successfully');
+    return result;
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('❌ Error sending email:', error);
     throw error;
   }
 };

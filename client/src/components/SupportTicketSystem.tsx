@@ -48,72 +48,11 @@ export const SupportTicketSystem: React.FC<SupportTicketSystemProps> = ({
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const { showSuccess, showError, showWarning } = useNotificationHelpers();
 
-  // Mock data for demonstration
+  // Fetch real tickets from API instead of using mock data
   useEffect(() => {
-    const mockTickets: SupportTicket[] = [
-      {
-        id: '1',
-        ticketNumber: 'TKT-001',
-        customerId: 'cust1',
-        customerName: 'John Doe',
-        customerEmail: 'john.doe@email.com',
-        subject: 'Internet Connection Issues',
-        description: 'My internet has been very slow for the past week. Speed tests show only 10 Mbps instead of the promised 100 Mbps.',
-        priority: 'high',
-        status: 'open',
-        category: 'technical',
-        assignedTo: 'admin1',
-        createdAt: new Date('2024-01-15'),
-        updatedAt: new Date('2024-01-15'),
-        messages: [
-          {
-            id: 'm1',
-            ticketId: '1',
-            senderId: 'cust1',
-            senderName: 'John Doe',
-            senderType: 'customer',
-            message: 'My internet has been very slow for the past week. Speed tests show only 10 Mbps instead of the promised 100 Mbps.',
-            createdAt: new Date('2024-01-15')
-          }
-        ]
-      },
-      {
-        id: '2',
-        ticketNumber: 'TKT-002',
-        customerId: 'cust2',
-        customerName: 'Jane Smith',
-        customerEmail: 'jane.smith@email.com',
-        subject: 'Billing Discrepancy',
-        description: 'I was charged twice for my monthly subscription this month.',
-        priority: 'medium',
-        status: 'in-progress',
-        category: 'billing',
-        assignedTo: 'admin1',
-        createdAt: new Date('2024-01-14'),
-        updatedAt: new Date('2024-01-14'),
-        messages: [
-          {
-            id: 'm2',
-            ticketId: '2',
-            senderId: 'cust2',
-            senderName: 'Jane Smith',
-            senderType: 'customer',
-            message: 'I was charged twice for my monthly subscription this month.',
-            createdAt: new Date('2024-01-14')
-          },
-          {
-            id: 'm3',
-            ticketId: '2',
-            senderId: 'admin1',
-            senderName: 'Admin Support',
-            senderType: 'admin',
-            message: 'Thank you for contacting us. I can see the duplicate charge on your account. We are processing a refund that should appear in 3-5 business days.',
-            createdAt: new Date('2024-01-14')
-          }
-        ]
-      }
-    ];
-    setTickets(mockTickets);
+    // TODO: Implement real API call to fetch support tickets
+    // For now, start with empty tickets array
+    setTickets([]);
   }, []);
 
   const getPriorityColor = (priority: string) => {

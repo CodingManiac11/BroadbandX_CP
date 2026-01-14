@@ -233,7 +233,9 @@ const InvoicePaymentButton = ({ invoice, onPaymentSuccess, onPaymentError, paidI
 
   const handleDownloadPDF = async (invoice: any) => {
     try {
-      console.log('📄 Attempting to download PDF for invoice:', invoice.id);
+      console.log('📄 Attempting to download PDF for invoice:', invoice);
+      console.log('📄 Invoice._id:', invoice._id);
+      console.log('📄 Invoice.id:', invoice.id);
       
       // Check if invoice is paid before attempting download
       if (invoice.status?.toLowerCase() !== 'paid') {
@@ -241,15 +243,13 @@ const InvoicePaymentButton = ({ invoice, onPaymentSuccess, onPaymentError, paidI
         return;
       }
       
-      // Use invoice/payment ID directly from database
-      const pdfInvoiceId = invoice.id || invoice._id || invoice.invoiceNumber?.replace('INV-', '') || '1';
+      // Use _id (MongoDB ObjectId) directly
+      const pdfInvoiceId = invoice._id || invoice.id;
       console.log('📄 Using PDF invoice ID:', pdfInvoiceId, 'for invoice:', invoice.invoiceNumber);
       
-      // Get userId from localStorage to pass to PDF endpoint
-      const userId = localStorage.getItem('userId');
-      
-      // Open PDF in new window for paid invoices only
-      const pdfUrl = `http://localhost:5001/api/pdf/invoice/${pdfInvoiceId}?userId=${userId}`;
+      // Open PDF in new window for paid invoices only (no userId needed)
+      const pdfUrl = `http://localhost:5001/api/pdf/invoice/${pdfInvoiceId}`;
+      console.log('📄 Opening PDF URL:', pdfUrl);
       window.open(pdfUrl, '_blank');
       
     } catch (error) {
@@ -482,59 +482,67 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
           throw new Error('Data integrity error: Received subscription for different user');
         }
         
-        // Process invoices from paymentHistory 
-        console.log('🔍 Raw payment history from API:', subscriptionData?.paymentHistory);
-        console.log('💰 Current paidInvoices set:', Array.from(paidInvoices));
+        // Fetch REAL invoices from Billing collection instead of paymentHistory
+        console.log('📄 Fetching real invoices from Billing API for user:', userId);
         
         let processedInvoices = [];
         
-        if (subscriptionData.paymentHistory && subscriptionData.paymentHistory.length > 0) {
-          // Use real payment history if available
-          processedInvoices = (subscriptionData.paymentHistory || []).map((payment: any, index: number) => {
-            const paymentId = payment._id || payment.id;
-            const isInPaidSet = paidInvoices.has(paymentId);
-            const apiStatus = payment.status;
-            const isCompleted = apiStatus === 'completed';
-            
-            console.log(`📋 Processing payment ${index + 1}:`, {
-              paymentId,
-              apiStatus,
-              isCompleted,
-              isInPaidSet,
-              amount: payment.amount,
-              rawPayment: payment
+        try {
+          console.log('🔍 Fetching invoices with userId:', userId);
+          const invoicesResponse = await axios.get(
+            `http://localhost:5001/api/billing/invoices/${userId}`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+              timeout: 10000
+            }
+          );
+          
+          console.log('✅ Billing API response:', invoicesResponse.data);
+          console.log('📊 Invoice count:', invoicesResponse.data?.data?.length || 0);
+          
+          if (invoicesResponse.data?.success && invoicesResponse.data?.data) {
+            processedInvoices = invoicesResponse.data.data.map((invoice: any) => {
+              const invoiceId = invoice._id;
+              const isInPaidSet = paidInvoices.has(invoiceId);
+              const apiStatus = invoice.status?.toLowerCase();
+              const isPaidStatus = apiStatus === 'paid';
+              
+              console.log(`📋 Processing invoice:`, {
+                invoiceId,
+                invoiceNumber: invoice.invoiceNumber,
+                apiStatus,
+                isPaidStatus,
+                isInPaidSet,
+                amount: invoice.total
+              });
+              
+              // Priority: Local paid state > API paid status > Default pending
+              const finalStatus = isInPaidSet ? 'Paid' : (isPaidStatus ? 'Paid' : 'Pending');
+              
+              return {
+                _id: invoiceId,           // Use MongoDB _id for PDF download
+                id: invoiceId,            // Backwards compatibility
+                invoiceNumber: invoice.invoiceNumber,
+                amount: invoice.total,
+                status: finalStatus,
+                date: new Date(invoice.createdAt).toLocaleDateString('en-GB'),
+                dueDate: new Date(invoice.dueDate).toLocaleDateString('en-GB'),
+                description: invoice.items?.[0]?.description || `${subscriptionData.planName || 'Subscription'} - Monthly`,
+                ...(isPaidStatus ? {
+                  paymentDate: invoice.paymentDate,
+                  transactionId: invoice.transactionId
+                } : {})
+              };
             });
-            
-            // Priority: Local paid state > API completed status > Default pending
-            const finalStatus = isInPaidSet ? 'Paid' : (isCompleted ? 'Paid' : 'Pending');
-            console.log(`💰 Final status for payment ${index + 1}: ${finalStatus} (Local override: ${isInPaidSet}, API completed: ${isCompleted})`);
-            
-            return {
-              id: paymentId,
-              invoiceNumber: `INV-${String(index + 1).padStart(3, '0')}`,
-              amount: subscriptionData.pricing?.totalAmount || subscriptionData.pricing?.finalPrice || payment.amount || 0,
-              status: finalStatus,
-              date: new Date(payment.date).toLocaleDateString('en-GB'),
-              dueDate: (() => {
-                const startDate = new Date(subscriptionData.startDate || subscriptionData.createdAt);
-                const dueDate = new Date(startDate);
-                dueDate.setMonth(dueDate.getMonth() + 1);
-                return dueDate.toLocaleDateString('en-GB');
-              })(),
-              description: index === 0 ? `${subscriptionData.planName || 'Subscription'} - Monthly` : `Plan Change - ${subscriptionData.planName || 'Subscription'}`,
-              ...(payment.status === 'completed' || paidInvoices.has(paymentId) ? {
-                paymentDate: new Date(payment.date).toISOString(),
-                transactionId: payment.transactionId
-              } : {})
-            };
-          });
-        } else {
-          // No payment history and no payments - show empty
-          console.log('📋 No payment history found, no invoices to display');
+          }
+          
+          console.log('💳 Processed invoices from Billing collection:', processedInvoices);
+          
+        } catch (invoiceError) {
+          console.warn('⚠️ Failed to fetch invoices from Billing API:', invoiceError);
+          console.log('📋 Falling back to empty invoice list');
           processedInvoices = [];
         }
-        
-        console.log('💳 Processed invoices from payment history:', processedInvoices);
         
         setData({
           subscription: {

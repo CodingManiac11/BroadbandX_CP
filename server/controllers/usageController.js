@@ -375,75 +375,17 @@ exports.generateSampleUsage = asyncHandler(async (req, res) => {
 // @route   POST /api/usage/generate-all
 // @access  Private (Admin only)
 exports.generateUsageForAll = asyncHandler(async (req, res) => {
-  // Find all active subscriptions
-  const activeSubscriptions = await Subscription.find({ status: 'active' }).populate('plan');
+  const { daysBack = 30, forceRegenerate = false } = req.body;
   
-  let generated = 0;
-  let skipped = 0;
-  const results = [];
+  const { generateUsageForAllUsers } = require('../utils/usageGenerator');
   
-  for (const subscription of activeSubscriptions) {
-    const userId = subscription.user;
-    
-    // Check if user already has usage data
-    const existingLogs = await UsageLog.countDocuments({ userId });
-    if (existingLogs > 0) {
-      skipped++;
-      continue;
-    }
-    
-    const sampleLogs = [];
-    const now = new Date();
-    const startDate = new Date(subscription.startDate || subscription.createdAt);
-    
-    // Generate usage for the past 7 days or since subscription start
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(now);
-      date.setDate(date.getDate() - i);
-      
-      if (date >= startDate) {
-        date.setHours(12, 0, 0, 0);
-        
-        const downloadBytes = (Math.random() * 2.5 + 0.5) * 1024 * 1024 * 1024;
-        const uploadBytes = (Math.random() * 0.4 + 0.1) * 1024 * 1024 * 1024;
-        
-        sampleLogs.push({
-          userId,
-          deviceId: `device-${userId.toString().slice(-6)}`,
-          deviceType: ['Desktop', 'Mobile', 'Tablet'][Math.floor(Math.random() * 3)],
-          ipAddress: `192.168.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
-          timestamp: date,
-          download: downloadBytes,
-          upload: uploadBytes,
-          downloadSpeed: subscription.plan.features?.speed?.download || 25,
-          uploadSpeed: subscription.plan.features?.speed?.upload || 5,
-          latency: Math.random() * 20 + 10,
-          packetLoss: Math.random() * 2,
-          sessionDuration: Math.floor(Math.random() * 120 + 30)
-        });
-      }
-    }
-    
-    if (sampleLogs.length > 0) {
-      await UsageLog.insertMany(sampleLogs);
-      const totalGB = sampleLogs.reduce((sum, log) => sum + log.download + log.upload, 0) / (1024 * 1024 * 1024);
-      generated++;
-      results.push({
-        userId: userId.toString(),
-        logsCreated: sampleLogs.length,
-        totalUsageGB: totalGB.toFixed(2)
-      });
-    }
-  }
+  // Generate realistic usage data for all users
+  const result = await generateUsageForAllUsers(parseInt(daysBack));
   
   res.status(200).json({
     success: true,
-    message: `Generated usage for ${generated} users, skipped ${skipped} users with existing data`,
-    data: {
-      generated,
-      skipped,
-      results
-    }
+    message: `Generated usage for ${result.generated} users, skipped ${result.skipped} users`,
+    data: result
   });
 });
 

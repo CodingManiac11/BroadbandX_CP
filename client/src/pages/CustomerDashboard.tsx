@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import {
   Box,
   Container,
@@ -89,6 +90,7 @@ const CustomerDashboard: React.FC = () => {
     billing: false,
     usage: false,
   });
+  const [currentUsageData, setCurrentUsageData] = useState<any>(null);
   
   // New state for modals and functionality
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -178,7 +180,7 @@ const CustomerDashboard: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshSubscriptions, subscriptions]);
 
-  const calculateStatsFromSubscriptions = (subs: Subscription[]) => {
+  const calculateStatsFromSubscriptions = (subs: Subscription[], usageData?: any) => {
     const activeSubs = subs.filter(sub => sub.status === 'active');
     
     // Calculate total monthly spending with NO TAX POLICY
@@ -194,12 +196,28 @@ const CustomerDashboard: React.FC = () => {
       return total + (sub.pricing?.basePrice || sub.pricing?.finalPrice || 0);
     }, 0);
     
+    // Calculate usage and speed from real data
+    let totalDataUsage = 0;
+    let averageSpeed = 0;
+    
+    if (usageData && usageData.totalUsage) {
+      // Convert bytes to GB
+      totalDataUsage = usageData.totalUsage / (1024 * 1024 * 1024);
+    }
+    
+    if (usageData && usageData.maxDownloadSpeed) {
+      averageSpeed = usageData.maxDownloadSpeed;
+    } else if (activeSubs.length > 0 && activeSubs[0].plan?.features?.speed?.download) {
+      // Fallback to plan speed
+      averageSpeed = activeSubs[0].plan.features.speed.download;
+    }
+    
     return {
       activeSubscriptions: activeSubs.length,
       monthlySpending: totalMonthlySpending || 0,
-      totalDataUsage: 45.6, // This would come from API in real scenario
-      averageSpeed: 87.3,    // This would come from API in real scenario
-      upcomingBills: activeSubs.length, // Assuming each active subscription has a bill
+      totalDataUsage: Number(totalDataUsage.toFixed(2)),
+      averageSpeed: Number(averageSpeed.toFixed(1)),
+      upcomingBills: activeSubs.length,
       supportTickets: 0,
     };
   };
@@ -207,8 +225,34 @@ const CustomerDashboard: React.FC = () => {
   const fetchCustomerStats = async (fetchedSubscriptions?: Subscription[]) => {
     try {
       console.log('Fetching customer stats...');
-      const statsData = await customerService.getCustomerStats();
-      setStats(statsData);
+      
+      // Fetch usage data first
+      let usageData = null;
+      try {
+        const token = localStorage.getItem('access_token');
+        const response = await axios.get(
+          `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/usage/current`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (response.data.success) {
+          usageData = response.data.data;
+          setCurrentUsageData(usageData);
+          console.log('✅ Fetched usage data:', usageData);
+        }
+      } catch (usageError) {
+        console.error('Error fetching usage data:', usageError);
+      }
+      
+      // Use the passed subscriptions or the state subscriptions
+      const subsForCalculation = fetchedSubscriptions || subscriptions;
+      
+      // Calculate stats with real usage data
+      const calculatedStats = calculateStatsFromSubscriptions(subsForCalculation, usageData);
+      
+      console.log('📊 Final calculated stats:', calculatedStats);
+      
+      // Set the calculated stats
+      setStats(calculatedStats);
     } catch (error) {
       console.error('Error fetching customer stats:', error);
       
@@ -216,7 +260,7 @@ const CustomerDashboard: React.FC = () => {
       // Use the passed subscriptions or the state subscriptions
       const subsForCalculation = fetchedSubscriptions || subscriptions;
       console.log('Current subscriptions for stats calculation:', subsForCalculation);
-      const calculatedStats = calculateStatsFromSubscriptions(subsForCalculation);
+      const calculatedStats = calculateStatsFromSubscriptions(subsForCalculation, currentUsageData);
       
       console.log('Calculated stats from subscriptions:', {
         totalSubs: subsForCalculation.length,
