@@ -1,0 +1,35 @@
+{
+  "started_at": "2026-01-15T14:39:57.468088",
+  "models": {
+    "churn": {
+      "status": "success",
+      "metrics": {
+        "accuracy": 0.878,
+        "precision": 0.7335766423357665,
+        "recall": 0.804,
+        "f1_score": 0.767175572519084,
+        "auc_roc": 0.941468
+      }
+    },
+    "segmentation": {
+      "status": "success",
+      "metrics": {
+        "silhouette_score": 0.13619576437639994,
+        "calinski_harabasz_score": 1481.7128039713803,
+        "davies_bouldin_score": 1.8566914431126544,
+        "inertia": 50220.44878351052
+      },
+      "n_segments": 5
+    },
+    "pricing": {
+      "status": "success",
+      "weights": {
+        "alpha": 0.15,
+        "beta": 0.1,
+        "gamma": 0.2
+      }
+    }
+  },
+  "completed_at": "2026-01-15T14:40:29.644468",
+  "duration_seconds": 32.17638
+}

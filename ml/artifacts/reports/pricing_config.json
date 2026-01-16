@@ -1,0 +1,21 @@
+{
+  "weights": {
+    "alpha": 0.15,
+    "beta": 0.1,
+    "gamma": 0.2
+  },
+  "constraints": {
+    "min_discount": -0.3,
+    "max_premium": 0.2,
+    "churn_threshold": 0.7
+  },
+  "demand_factors": {
+    "peak_hours": [
+      18,
+      22
+    ],
+    "peak_multiplier": 0.15,
+    "offpeak_multiplier": -0.1,
+    "weekend_multiplier": 0.05
+  }
+}

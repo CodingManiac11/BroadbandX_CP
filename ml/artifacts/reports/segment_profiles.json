@@ -1,0 +1,90 @@
+{
+  "segments": {
+    "0": {
+      "name": "Value-Seekers",
+      "population": 0.123,
+      "population_count": 1230,
+      "price_elasticity": -1.2,
+      "characteristics": {
+        "avg_plan_price": 994.61,
+        "avg_monthly_usage_gb": 471.14,
+        "avg_revenue": 24816.38,
+        "avg_contract_age_months": 47.1,
+        "avg_nps_score": 6.23,
+        "avg_support_tickets": 1.08,
+        "churn_rate": 0.0846
+      },
+      "pricing_strategy": "Emphasize value-for-money with tiered pricing options."
+    },
+    "1": {
+      "name": "Value-Seekers",
+      "population": 0.2458,
+      "population_count": 2458,
+      "price_elasticity": -1.2,
+      "characteristics": {
+        "avg_plan_price": 883.09,
+        "avg_monthly_usage_gb": 359.01,
+        "avg_revenue": 38744.72,
+        "avg_contract_age_months": 11.4,
+        "avg_nps_score": 6.32,
+        "avg_support_tickets": 0.71,
+        "churn_rate": 0.2319
+      },
+      "pricing_strategy": "Emphasize value-for-money with tiered pricing options."
+    },
+    "2": {
+      "name": "Value-Seekers",
+      "population": 0.2434,
+      "population_count": 2434,
+      "price_elasticity": -1.2,
+      "characteristics": {
+        "avg_plan_price": 886.96,
+        "avg_monthly_usage_gb": 360.54,
+        "avg_revenue": 12476.49,
+        "avg_contract_age_months": 11.5,
+        "avg_nps_score": 6.21,
+        "avg_support_tickets": 0.73,
+        "churn_rate": 0.2136
+      },
+      "pricing_strategy": "Emphasize value-for-money with tiered pricing options."
+    },
+    "3": {
+      "name": "Value-Seekers",
+      "population": 0.156,
+      "population_count": 1560,
+      "price_elasticity": -1.2,
+      "characteristics": {
+        "avg_plan_price": 915.73,
+        "avg_monthly_usage_gb": 388.68,
+        "avg_revenue": 25306.77,
+        "avg_contract_age_months": 12.5,
+        "avg_nps_score": 6.31,
+        "avg_support_tickets": 2.78,
+        "churn_rate": 0.4596
+      },
+      "pricing_strategy": "Emphasize value-for-money with tiered pricing options."
+    },
+    "4": {
+      "name": "Value-Seekers",
+      "population": 0.2318,
+      "population_count": 2318,
+      "price_elasticity": -1.2,
+      "characteristics": {
+        "avg_plan_price": 2440.76,
+        "avg_monthly_usage_gb": 1720.41,
+        "avg_revenue": 25878.38,
+        "avg_contract_age_months": 15.4,
+        "avg_nps_score": 6.28,
+        "avg_support_tickets": 1.17,
+        "churn_rate": 0.2541
+      },
+      "pricing_strategy": "Emphasize value-for-money with tiered pricing options."
+    }
+  },
+  "metrics": {
+    "silhouette_score": 0.13619576437639994,
+    "calinski_harabasz_score": 1481.7128039713803,
+    "davies_bouldin_score": 1.8566914431126544,
+    "inertia": 50220.44878351052
+  }
+}
