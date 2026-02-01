@@ -153,15 +153,15 @@ export const adminService = {
       if (params.limit) queryParams.append('limit', params.limit.toString());
       if (params.status && params.status !== 'all') queryParams.append('status', params.status);
       if (params.search) queryParams.append('search', params.search);
-      
+
       const url = `/admin/subscriptions?${queryParams}`;
       console.log('🚀 Making request to:', url);
       console.log('📋 Request params:', params);
-      
+
       const response = await apiClient.get<ApiResponse<any>>(url);
       console.log('📡 Raw response status:', response.status);
       console.log('📦 Raw response data:', response.data);
-      
+
       // Handle the response properly - the backend returns { success: true, data: [...], pagination: {...} }
       if (response.data.success) {
         const result = {
@@ -281,6 +281,26 @@ export const adminService = {
   getPlanRequest: async (requestId: string): Promise<any> => {
     try {
       const response = await apiClient.get<ApiResponse<any>>(`/admin/plan-requests/${requestId}`);
+      return handleApiResponse(response);
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  // Subscription actions
+  cancelSubscription: async (subscriptionId: string, reason?: string): Promise<any> => {
+    try {
+      const response = await apiClient.put<ApiResponse<any>>(`/admin/subscriptions/${subscriptionId}/cancel`, { reason });
+      return handleApiResponse(response);
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  // User password reset
+  resetUserPassword: async (userId: string, newPassword?: string): Promise<{ userId: string; email: string; temporaryPassword?: string; mustChangePassword: boolean }> => {
+    try {
+      const response = await apiClient.put<ApiResponse<any>>(`/admin/users/${userId}/reset-password`, { newPassword });
       return handleApiResponse(response);
     } catch (error) {
       throw new Error(handleApiError(error));

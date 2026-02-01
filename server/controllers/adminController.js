@@ -37,8 +37,8 @@ const getDashboardStats = asyncHandler(async (req, res) => {
       { $group: { _id: null, total: { $sum: '$pricing.totalAmount' } } }
     ]),
     Subscription.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           status: 'active',
           createdAt: { $gte: startOfMonth }
         }
@@ -51,7 +51,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     }),
     Subscription.countDocuments({
       status: 'active',
-      endDate: { 
+      endDate: {
         $lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         $gte: now
       }
@@ -77,7 +77,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     role: 'customer',
     customerSince: { $lt: startOfMonth }
   });
-  
+
   // If we have no new users this month but had users before, calculate based on total base
   if (newUsersThisMonth === 0 && previousMonthCustomers > 0 && lastMonthUsers === 0) {
     userGrowthRate = 0; // No change if no users this month or last month
@@ -145,7 +145,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     }
   ]);
 
-  const totalUsageGB = usageStats.length > 0 
+  const totalUsageGB = usageStats.length > 0
     ? ((usageStats[0].totalDownload + usageStats[0].totalUpload) / (1024 * 1024 * 1024)).toFixed(2)
     : 0;
   const activeUsersCount = usageStats.length > 0 ? usageStats[0].activeUsers.length : 0;
@@ -246,12 +246,12 @@ const getSubscriptionAnalytics = asyncHandler(async (req, res) => {
   const { period = 'month', year = new Date().getFullYear() } = req.query;
 
   let groupBy, dateRange;
-  
+
   if (period === 'year') {
     groupBy = { year: { $year: '$createdAt' } };
     dateRange = {};
   } else {
-    groupBy = { 
+    groupBy = {
       year: { $year: '$createdAt' },
       month: { $month: '$createdAt' }
     };
@@ -401,9 +401,9 @@ const getRevenueAnalytics = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/analytics/top-plans
 // @access  Private/Admin
 const getTopPlans = asyncHandler(async (req, res) => {
-  const { 
+  const {
     period = 'current-month',
-    limit = 10 
+    limit = 10
   } = req.query;
 
   let dateFilter = {};
@@ -804,7 +804,7 @@ const createUser = asyncHandler(async (req, res) => {
   // Provide default address if not provided
   const userAddress = address || {
     street: 'Not Provided',
-    city: 'Not Provided', 
+    city: 'Not Provided',
     state: 'Not Provided',
     zipCode: '00000',
     country: 'USA'
@@ -826,7 +826,7 @@ const createUser = asyncHandler(async (req, res) => {
   };
 
   const user = await User.create(userData);
-  
+
   // Remove password from response but include it in a separate field for admin
   user.password = undefined;
 
@@ -974,7 +974,7 @@ const deleteUser = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 const getSystemHealth = asyncHandler(async (req, res) => {
   const dbStats = await mongoose.connection.db.stats();
-  
+
   const systemHealth = {
     database: {
       connected: mongoose.connection.readyState === 1,
@@ -1001,14 +1001,14 @@ const getSystemHealth = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 const getAllSubscriptions = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, status, search } = req.query;
-  
+
   let query = {};
-  
+
   // Filter by status if provided
   if (status && status !== 'all') {
     query.status = status;
   }
-  
+
   // Search by user email or plan name
   if (search) {
     const users = await User.find({
@@ -1018,28 +1018,28 @@ const getAllSubscriptions = asyncHandler(async (req, res) => {
         { lastName: { $regex: search, $options: 'i' } }
       ]
     }).select('_id');
-    
+
     const plans = await Plan.find({
       name: { $regex: search, $options: 'i' }
     }).select('_id');
-    
+
     query.$or = [
       { user: { $in: users.map(u => u._id) } },
       { plan: { $in: plans.map(p => p._id) } }
     ];
   }
-  
+
   const skip = (parseInt(page) - 1) * parseInt(limit);
-  
+
   const subscriptions = await Subscription.find(query)
     .populate('user', 'email firstName lastName')
     .populate('plan', 'name category pricing status')
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(parseInt(limit));
-  
+
   const total = await Subscription.countDocuments(query);
-  
+
   res.status(200).json({
     success: true,
     data: subscriptions,
@@ -1056,32 +1056,32 @@ const getAllSubscriptions = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/plan-requests
 // @access  Private/Admin
 const getAllPlanRequests = asyncHandler(async (req, res) => {
-  const { 
-    status = 'pending', 
-    requestType, 
-    priority, 
-    page = 1, 
+  const {
+    status = 'pending',
+    requestType,
+    priority,
+    page = 1,
     limit = 10,
-    search 
+    search
   } = req.query;
 
   let query = {};
-  
+
   // Filter by status
   if (status && status !== 'all') {
     query.status = status;
   }
-  
+
   // Filter by request type
   if (requestType) {
     query.requestType = requestType;
   }
-  
+
   // Filter by priority
   if (priority) {
     query.priority = { $gte: parseInt(priority) };
   }
-  
+
   // Search by customer name or email
   if (search) {
     const customers = await User.find({
@@ -1091,7 +1091,7 @@ const getAllPlanRequests = asyncHandler(async (req, res) => {
         { email: { $regex: search, $options: 'i' } }
       ]
     }).select('_id');
-    
+
     query.customer = { $in: customers.map(c => c._id) };
   }
 
@@ -1109,7 +1109,7 @@ const getAllPlanRequests = asyncHandler(async (req, res) => {
     .skip((page - 1) * limit);
 
   const total = await PlanRequest.countDocuments(query);
-  
+
   // Get summary statistics
   const stats = await PlanRequest.aggregate([
     {
@@ -1119,11 +1119,11 @@ const getAllPlanRequests = asyncHandler(async (req, res) => {
       }
     }
   ]);
-  
+
   const pendingCount = await PlanRequest.countDocuments({ status: 'pending' });
-  const urgentCount = await PlanRequest.countDocuments({ 
-    status: 'pending', 
-    'requestDetails.urgency': 'high' 
+  const urgentCount = await PlanRequest.countDocuments({
+    status: 'pending',
+    'requestDetails.urgency': 'high'
   });
 
   res.status(200).json({
@@ -1181,7 +1181,7 @@ const getPlanRequestById = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 const approvePlanRequest = asyncHandler(async (req, res) => {
   const { comments, internalNotes } = req.body;
-  
+
   const request = await PlanRequest.findById(req.params.id)
     .populate('customer')
     .populate('requestedPlan')
@@ -1203,11 +1203,11 @@ const approvePlanRequest = asyncHandler(async (req, res) => {
 
   // Approve the request
   await request.approve(req.user._id, comments, internalNotes);
-  
+
   // Execute the actual plan change based on request type
   try {
     let result = {};
-    
+
     switch (request.requestType) {
       case 'new_subscription':
         // Create new subscription
@@ -1225,7 +1225,7 @@ const approvePlanRequest = asyncHandler(async (req, res) => {
         await newSubscription.save();
         result.subscription = newSubscription;
         break;
-        
+
       case 'plan_change':
       case 'plan_upgrade':
       case 'plan_downgrade':
@@ -1237,7 +1237,7 @@ const approvePlanRequest = asyncHandler(async (req, res) => {
           result.subscription = request.currentSubscription;
         }
         break;
-        
+
       case 'cancel_subscription':
         // Cancel subscription
         if (request.currentSubscription) {
@@ -1266,7 +1266,7 @@ const approvePlanRequest = asyncHandler(async (req, res) => {
     // If execution fails, revert the approval
     request.status = 'pending';
     await request.save();
-    
+
     res.status(500).json({
       status: 'error',
       message: 'Failed to execute plan change after approval',
@@ -1280,7 +1280,7 @@ const approvePlanRequest = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 const rejectPlanRequest = asyncHandler(async (req, res) => {
   const { comments, internalNotes } = req.body;
-  
+
   const request = await PlanRequest.findById(req.params.id);
 
   if (!request) {
@@ -1319,7 +1319,7 @@ const rejectPlanRequest = asyncHandler(async (req, res) => {
 const getPlanRequestAnalytics = asyncHandler(async (req, res) => {
   const now = new Date();
   const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  
+
   // Request volume by type
   const requestsByType = await PlanRequest.aggregate([
     {
@@ -1338,7 +1338,7 @@ const getPlanRequestAnalytics = asyncHandler(async (req, res) => {
       }
     }
   ]);
-  
+
   // Average approval time
   const approvalTimes = await PlanRequest.aggregate([
     {
@@ -1358,7 +1358,7 @@ const getPlanRequestAnalytics = asyncHandler(async (req, res) => {
       }
     }
   ]);
-  
+
   // Monthly trend
   const monthlyTrend = await PlanRequest.aggregate([
     {
@@ -1382,9 +1382,101 @@ const getPlanRequestAnalytics = asyncHandler(async (req, res) => {
     status: 'success',
     data: {
       requestsByType,
-      averageApprovalTimeHours: approvalTimes[0]?.avgApprovalTime ? 
+      averageApprovalTimeHours: approvalTimes[0]?.avgApprovalTime ?
         Math.round(approvalTimes[0].avgApprovalTime / (1000 * 60 * 60) * 100) / 100 : 0,
       monthlyTrend
+    }
+  });
+});
+
+// @desc    Cancel a subscription (Admin only)
+// @route   PUT /api/admin/subscriptions/:id/cancel
+// @access  Private/Admin
+const cancelSubscription = asyncHandler(async (req, res) => {
+  const { reason } = req.body;
+
+  const subscription = await Subscription.findById(req.params.id)
+    .populate('user', 'email firstName lastName')
+    .populate('plan', 'name');
+
+  if (!subscription) {
+    return res.status(404).json({
+      status: 'error',
+      message: 'Subscription not found'
+    });
+  }
+
+  if (subscription.status === 'cancelled') {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Subscription is already cancelled'
+    });
+  }
+
+  // Update subscription status
+  subscription.status = 'cancelled';
+  subscription.cancellation = {
+    requestDate: new Date(),
+    effectiveDate: new Date(),
+    reason: reason || 'Cancelled by admin',
+    cancelledBy: req.user._id,
+    refundAmount: 0
+  };
+
+  await subscription.save();
+
+  console.log(`✅ Subscription ${subscription._id} cancelled by admin ${req.user.email}`);
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Subscription cancelled successfully',
+    data: {
+      subscription
+    }
+  });
+});
+
+// @desc    Reset user password (Admin only)
+// @route   PUT /api/admin/users/:id/reset-password
+// @access  Private/Admin
+const resetUserPassword = asyncHandler(async (req, res) => {
+  const { newPassword } = req.body;
+
+  const user = await User.findById(req.params.id);
+
+  if (!user) {
+    return res.status(404).json({
+      status: 'error',
+      message: 'User not found'
+    });
+  }
+
+  // Prevent resetting admin passwords by other admins
+  if (user.role === 'admin' && user._id.toString() !== req.user._id.toString()) {
+    return res.status(403).json({
+      status: 'error',
+      message: 'Cannot reset password for other admin users'
+    });
+  }
+
+  // Generate password if not provided
+  const password = newPassword || 'BroadbandX' + Math.random().toString(36).slice(-8) + '!';
+
+  // Update password (will be hashed by pre-save hook)
+  user.password = password;
+  user.mustChangePassword = !newPassword; // Force change if using generated password
+  await user.save();
+
+  console.log(`✅ Password reset for user ${user.email} by admin ${req.user.email}`);
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Password reset successfully',
+    data: {
+      userId: user._id,
+      email: user.email,
+      temporaryPassword: !newPassword ? password : undefined, // Only return if generated
+      mustChangePassword: user.mustChangePassword
     }
   });
 });
@@ -1406,6 +1498,8 @@ module.exports = {
   getSystemHealth,
   getAllSubscriptions,
   activateSubscription,
+  cancelSubscription,
+  resetUserPassword,
   getAllPlanRequests,
   getPlanRequestById,
   approvePlanRequest,

@@ -41,12 +41,18 @@ class DataGenerator:
         np.random.seed(random_seed)
         
         # Plan configurations (matching existing Plan model)
+        # 8 realistic Indian broadband plans
         self.plans = {
-            "Basic": {"price": 499, "speed": 50, "data_limit": 500},
-            "Standard": {"price": 799, "speed": 100, "data_limit": 1000},
-            "Premium": {"price": 1299, "speed": 200, "data_limit": None},  # Unlimited
-            "Ultra": {"price": 1999, "speed": 500, "data_limit": None},
-            "Business": {"price": 2999, "speed": 1000, "data_limit": None}
+            # Residential Plans
+            "Starter": {"price": 399, "speed": 40, "data_limit": 200, "category": "residential"},
+            "Basic": {"price": 499, "speed": 60, "data_limit": 500, "category": "residential"},
+            "Standard": {"price": 799, "speed": 100, "data_limit": 1000, "category": "residential"},
+            "Premium": {"price": 1199, "speed": 200, "data_limit": None, "category": "residential"},  # Unlimited
+            "Ultra": {"price": 1499, "speed": 300, "data_limit": None, "category": "residential"},  # Unlimited
+            # Business Plans
+            "Business Basic": {"price": 999, "speed": 100, "data_limit": 1000, "category": "business"},
+            "Business Pro": {"price": 1999, "speed": 300, "data_limit": None, "category": "business"},  # Unlimited
+            "Enterprise": {"price": 3999, "speed": 500, "data_limit": None, "category": "business"}  # Unlimited
         }
         
         # Locations (matching availability regions)
@@ -74,7 +80,9 @@ class DataGenerator:
     def _generate_subscription_data(self) -> dict:
         """Generate subscription-related features."""
         plan_names = list(self.plans.keys())
-        plan_probs = [0.20, 0.30, 0.25, 0.15, 0.10]  # Distribution matching segments
+        # Distribution: Starter 10%, Basic 15%, Standard 25%, Premium 20%, Ultra 10%,
+        # Business Basic 10%, Business Pro 7%, Enterprise 3%
+        plan_probs = [0.10, 0.15, 0.25, 0.20, 0.10, 0.10, 0.07, 0.03]
         
         selected_plans = np.random.choice(plan_names, self.n_samples, p=plan_probs)
         

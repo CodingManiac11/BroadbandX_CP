@@ -16,6 +16,11 @@ const subscriptionSchema = new mongoose.Schema({
     enum: ['active', 'suspended', 'cancelled', 'expired'],
     default: 'active'
   },
+  paymentFailures: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
   startDate: {
     type: Date,
     required: [true, 'Start date is required']
@@ -195,7 +200,7 @@ const subscriptionSchema = new mongoose.Schema({
 });
 
 // Virtual for subscription duration
-subscriptionSchema.virtual('duration').get(function() {
+subscriptionSchema.virtual('duration').get(function () {
   if (this.startDate && this.endDate) {
     const diffTime = Math.abs(this.endDate - this.startDate);
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24)); // days
@@ -204,7 +209,7 @@ subscriptionSchema.virtual('duration').get(function() {
 });
 
 // Virtual for days remaining
-subscriptionSchema.virtual('daysRemaining').get(function() {
+subscriptionSchema.virtual('daysRemaining').get(function () {
   if (this.endDate) {
     const diffTime = this.endDate - new Date();
     return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
@@ -213,7 +218,7 @@ subscriptionSchema.virtual('daysRemaining').get(function() {
 });
 
 // Virtual for current usage percentage
-subscriptionSchema.virtual('currentUsagePercentage').get(function() {
+subscriptionSchema.virtual('currentUsagePercentage').get(function () {
   if (this.usage.currentMonth.dataUsed && this.plan && this.plan.features.dataLimit.amount) {
     return (this.usage.currentMonth.dataUsed / this.plan.features.dataLimit.amount) * 100;
   }
@@ -221,7 +226,7 @@ subscriptionSchema.virtual('currentUsagePercentage').get(function() {
 });
 
 // Virtual for monthly savings
-subscriptionSchema.virtual('monthlySavings').get(function() {
+subscriptionSchema.virtual('monthlySavings').get(function () {
   return this.pricing.basePrice - this.pricing.finalPrice;
 });
 
@@ -239,12 +244,12 @@ subscriptionSchema.index({ user: 1, status: 1 });
 subscriptionSchema.index({ status: 1, endDate: 1 });
 
 // Pre-save middleware
-subscriptionSchema.pre('save', function(next) {
+subscriptionSchema.pre('save', function (next) {
   // Calculate total amount including tax
   if (this.pricing.finalPrice && this.pricing.taxAmount) {
     this.pricing.totalAmount = this.pricing.finalPrice + this.pricing.taxAmount;
   }
-  
+
   // Set next renewal date for auto-renewal
   if (this.autoRenewal.enabled && this.billingCycle && this.startDate) {
     const nextRenewal = new Date(this.startDate);
@@ -255,14 +260,14 @@ subscriptionSchema.pre('save', function(next) {
     }
     this.autoRenewal.nextRenewalDate = nextRenewal;
   }
-  
+
   next();
 });
 
 // Static method to get user's active subscription
-subscriptionSchema.statics.findActiveByUser = function(userId) {
-  return this.findOne({ 
-    user: userId, 
+subscriptionSchema.statics.findActiveByUser = function (userId) {
+  return this.findOne({
+    user: userId,
     status: 'active',
     startDate: { $lte: new Date() },
     endDate: { $gte: new Date() }
@@ -270,10 +275,10 @@ subscriptionSchema.statics.findActiveByUser = function(userId) {
 };
 
 // Static method to get expiring subscriptions
-subscriptionSchema.statics.findExpiring = function(days = 7) {
+subscriptionSchema.statics.findExpiring = function (days = 7) {
   const futureDate = new Date();
   futureDate.setDate(futureDate.getDate() + days);
-  
+
   return this.find({
     status: 'active',
     endDate: { $lte: futureDate, $gte: new Date() }
@@ -281,7 +286,7 @@ subscriptionSchema.statics.findExpiring = function(days = 7) {
 };
 
 // Static method to get subscription statistics
-subscriptionSchema.statics.getSubscriptionStats = function() {
+subscriptionSchema.statics.getSubscriptionStats = function () {
   return this.aggregate([
     {
       $group: {
@@ -294,21 +299,21 @@ subscriptionSchema.statics.getSubscriptionStats = function() {
 };
 
 // Method to calculate next bill date
-subscriptionSchema.methods.getNextBillDate = function() {
+subscriptionSchema.methods.getNextBillDate = function () {
   if (!this.autoRenewal.enabled) return null;
-  
+
   const nextBill = new Date(this.startDate);
   if (this.billingCycle === 'monthly') {
     nextBill.setMonth(nextBill.getMonth() + 1);
   } else {
     nextBill.setFullYear(nextBill.getFullYear() + 1);
   }
-  
+
   return nextBill;
 };
 
 // Method to add service history entry
-subscriptionSchema.methods.addServiceHistory = function(type, description, performedBy, metadata = {}) {
+subscriptionSchema.methods.addServiceHistory = function (type, description, performedBy, metadata = {}) {
   this.serviceHistory.push({
     type,
     description,
@@ -319,7 +324,7 @@ subscriptionSchema.methods.addServiceHistory = function(type, description, perfo
 };
 
 // Method to add customer note
-subscriptionSchema.methods.addCustomerNote = function(note, addedBy, type = 'general') {
+subscriptionSchema.methods.addCustomerNote = function (note, addedBy, type = 'general') {
   this.customerNotes.push({
     note,
     addedBy,
@@ -329,7 +334,7 @@ subscriptionSchema.methods.addCustomerNote = function(note, addedBy, type = 'gen
 };
 
 // Method to check if subscription is expiring soon
-subscriptionSchema.methods.isExpiringSoon = function(days = 7) {
+subscriptionSchema.methods.isExpiringSoon = function (days = 7) {
   const futureDate = new Date();
   futureDate.setDate(futureDate.getDate() + days);
   return this.endDate <= futureDate && this.endDate >= new Date();

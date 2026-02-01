@@ -24,7 +24,7 @@ import {
   Button,
   Stack
 } from '@mui/material';
-import { Search, Refresh, Error as ErrorIcon } from '@mui/icons-material';
+import { Search, Refresh, Error as ErrorIcon, Cancel as CancelIcon } from '@mui/icons-material';
 import { adminService } from '../services/adminService';
 import { customerService } from '../services/customerService';
 import { useAuth } from '../contexts/AuthContext';
@@ -39,15 +39,34 @@ const SubscriptionsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const { user } = useAuth();
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  const handleCancelSubscription = async (subscriptionId: string) => {
+    if (!window.confirm('Are you sure you want to cancel this subscription? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setCancellingId(subscriptionId);
+      await adminService.cancelSubscription(subscriptionId, 'Cancelled by admin');
+      alert('Subscription cancelled successfully');
+      fetchSubscriptions(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to cancel subscription:', error);
+      alert('Failed to cancel subscription. Please try again.');
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   const fetchSubscriptions = async () => {
     try {
       setLoading(true);
       setError(null); // Clear previous errors
       console.log('🔍 Fetching subscriptions for user:', user?.email, 'role:', user?.role);
-      
+
       let response;
-      
+
       // Use different service based on user role
       if (user?.role === 'admin') {
         console.log('📡 Fetching as admin user...');
@@ -57,9 +76,9 @@ const SubscriptionsPage: React.FC = () => {
           search,
           status: statusFilter === 'all' ? undefined : statusFilter
         });
-        
+
         console.log('📡 Admin subscription response:', JSON.stringify(response, null, 2));
-        
+
         if (response && response.success) {
           const subscriptionData = response.data || [];
           setSubscriptions(subscriptionData);
@@ -72,14 +91,14 @@ const SubscriptionsPage: React.FC = () => {
         // Customer user - use customer service
         console.log('📡 Fetching as customer user...');
         const customerResponse = await customerService.getCustomerSubscriptions();
-        
+
         console.log('📡 Customer subscription response:', JSON.stringify(customerResponse, null, 2));
-        
+
         if (customerResponse && customerResponse.subscriptions) {
           setSubscriptions(customerResponse.subscriptions);
           setTotalPages(1); // Customer only has their own subscriptions, no pagination needed
           console.log('✅ Customer subscriptions set successfully:', customerResponse.subscriptions.length, 'items');
-          
+
           // Log individual subscription details
           customerResponse.subscriptions.forEach((sub, index) => {
             console.log(`📋 Customer Subscription ${index + 1}: ${sub.plan?.name} (${sub.status})`);
@@ -89,10 +108,10 @@ const SubscriptionsPage: React.FC = () => {
           setSubscriptions([]);
         }
       }
-      
+
     } catch (err) {
       console.error('💥 Critical error fetching subscriptions:', err);
-      
+
       // Enhanced error handling
       if (err instanceof Error) {
         if (err.message.includes('Failed to fetch') || err.message.includes('Network')) {
@@ -158,10 +177,10 @@ const SubscriptionsPage: React.FC = () => {
       <Typography variant="h4" gutterBottom>
         {user?.role === 'admin' ? 'All Subscriptions' : 'My Subscriptions'}
       </Typography>
-      
+
       {error && (
-        <Alert 
-          severity="error" 
+        <Alert
+          severity="error"
           sx={{ mb: 2 }}
           action={
             <Stack direction="row" spacing={1}>
@@ -209,7 +228,7 @@ const SubscriptionsPage: React.FC = () => {
                 }}
                 sx={{ minWidth: 300 }}
               />
-              
+
               <FormControl sx={{ minWidth: 150 }}>
                 <InputLabel>Status</InputLabel>
                 <Select
@@ -242,6 +261,7 @@ const SubscriptionsPage: React.FC = () => {
               <TableCell>Start Date</TableCell>
               <TableCell>End Date</TableCell>
               <TableCell>Created</TableCell>
+              {user?.role === 'admin' && <TableCell>Actions</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -251,13 +271,13 @@ const SubscriptionsPage: React.FC = () => {
                   <TableCell>
                     <Box>
                       <Typography variant="body2" fontWeight="bold">
-                        {typeof subscription.user === 'object' && subscription.user ? 
+                        {typeof subscription.user === 'object' && subscription.user ?
                           `${subscription.user.firstName || ''} ${subscription.user.lastName || ''}`.trim() || subscription.user.email :
                           subscription.user || 'N/A'}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        {typeof subscription.user === 'object' && subscription.user ? 
-                          subscription.user.email : 
+                        {typeof subscription.user === 'object' && subscription.user ?
+                          subscription.user.email :
                           'User details not populated'}
                       </Typography>
                     </Box>
@@ -274,15 +294,15 @@ const SubscriptionsPage: React.FC = () => {
                   </Box>
                 </TableCell>
                 <TableCell>
-                  <Chip 
-                    label={subscription.status.toUpperCase()} 
+                  <Chip
+                    label={subscription.status.toUpperCase()}
                     color={getStatusColor(subscription.status) as any}
                     size="small"
                   />
                 </TableCell>
                 <TableCell>
-                  <Chip 
-                    label={(subscription.billingCycle || 'monthly').toUpperCase()} 
+                  <Chip
+                    label={(subscription.billingCycle || 'monthly').toUpperCase()}
                     variant="outlined"
                     size="small"
                   />
@@ -300,6 +320,22 @@ const SubscriptionsPage: React.FC = () => {
                   {formatDate(calculateEndDate(subscription.startDate, subscription.billingCycle || 'monthly').toISOString())}
                 </TableCell>
                 <TableCell>{formatDate(subscription.createdAt)}</TableCell>
+                {user?.role === 'admin' && (
+                  <TableCell>
+                    {subscription.status !== 'cancelled' && (
+                      <Button
+                        size="small"
+                        color="error"
+                        variant="outlined"
+                        startIcon={<CancelIcon />}
+                        disabled={cancellingId === subscription._id}
+                        onClick={() => handleCancelSubscription(subscription._id)}
+                      >
+                        {cancellingId === subscription._id ? 'Cancelling...' : 'Cancel'}
+                      </Button>
+                    )}
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>

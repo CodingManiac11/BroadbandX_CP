@@ -66,8 +66,8 @@ const HomePage: React.FC = () => {
               Plans
             </Button>
             {isAuthenticated ? (
-              <Button 
-                color="inherit" 
+              <Button
+                color="inherit"
                 onClick={() => navigate(isAdmin ? '/admin' : '/dashboard')}
               >
                 {user?.firstName || 'Dashboard'}
@@ -77,9 +77,9 @@ const HomePage: React.FC = () => {
                 <Button color="inherit" onClick={() => navigate('/login')}>
                   Login
                 </Button>
-                <Button 
-                  variant="contained" 
-                  color="secondary" 
+                <Button
+                  variant="contained"
+                  color="secondary"
                   onClick={handleGetStarted}
                 >
                   Get Started
@@ -139,27 +139,27 @@ const HomePage: React.FC = () => {
         <Typography variant="h2" component="h2" textAlign="center" gutterBottom>
           Why Choose BroadbandX?
         </Typography>
-        <Typography 
-          variant="h6" 
-          textAlign="center" 
-          color="text.secondary" 
+        <Typography
+          variant="h6"
+          textAlign="center"
+          color="text.secondary"
           sx={{ mb: 6 }}
         >
           We provide the fastest, most reliable broadband services with exceptional customer support
         </Typography>
 
         {/* Features Cards */}
-        <Box sx={{ 
-          display: 'flex', 
-          flexWrap: 'wrap', 
-          gap: 3, 
-          justifyContent: 'center' 
+        <Box sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 3,
+          justifyContent: 'center'
         }}>
           {features.map((feature, index) => (
-            <Card key={index} sx={{ 
-              width: { xs: '100%', sm: '45%', md: '22%' }, 
-              textAlign: 'center', 
-              p: 2 
+            <Card key={index} sx={{
+              width: { xs: '100%', sm: '45%', md: '22%' },
+              textAlign: 'center',
+              p: 2
             }}>
               <CardContent>
                 <Box sx={{ mb: 2 }}>
@@ -183,30 +183,30 @@ const HomePage: React.FC = () => {
           <Typography variant="h2" component="h2" textAlign="center" gutterBottom>
             Choose Your Perfect Plan
           </Typography>
-          <Typography 
-            variant="h6" 
-            textAlign="center" 
-            color="text.secondary" 
+          <Typography
+            variant="h6"
+            textAlign="center"
+            color="text.secondary"
             sx={{ mb: 6 }}
           >
             From basic browsing to enterprise solutions, we have a plan for everyone
           </Typography>
 
           {/* Plans Cards */}
-          <Box sx={{ 
-            display: 'flex', 
-            flexWrap: 'wrap', 
-            gap: 3, 
-            justifyContent: 'center' 
+          <Box sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 3,
+            justifyContent: 'center'
           }}>
             {[
-              { name: 'Basic', price: 29.99, speed: '25 Mbps', popular: false },
-              { name: 'Standard', price: 59.99, speed: '100 Mbps', popular: true },
-              { name: 'Premium', price: 99.99, speed: '1000 Mbps', popular: false },
+              { name: 'Basic', price: 499, speed: '60 Mbps', popular: false },
+              { name: 'Standard', price: 799, speed: '100 Mbps', popular: true },
+              { name: 'Premium', price: 1199, speed: '200 Mbps', popular: false },
             ].map((plan, index) => (
-              <Card 
+              <Card
                 key={index}
-                sx={{ 
+                sx={{
                   position: 'relative',
                   width: { xs: '100%', sm: '45%', md: '30%' },
                   border: plan.popular ? 2 : 1,
@@ -237,7 +237,7 @@ const HomePage: React.FC = () => {
                     {plan.name}
                   </Typography>
                   <Typography variant="h3" component="div" color="primary.main" gutterBottom>
-                    ${plan.price}
+                    ₹{plan.price}
                     <Typography variant="body2" component="span" color="text.secondary">
                       /month
                     </Typography>
@@ -297,9 +297,9 @@ const HomePage: React.FC = () => {
       {/* Footer */}
       <Box sx={{ bgcolor: 'grey.900', color: 'white', py: 4 }}>
         <Container maxWidth="lg">
-          <Box sx={{ 
-            display: 'flex', 
-            flexWrap: 'wrap', 
+          <Box sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
             justifyContent: 'space-between',
             gap: 4
           }}>

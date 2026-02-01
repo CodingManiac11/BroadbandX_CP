@@ -138,7 +138,7 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
   if (isAuthentic) {
     // Update payment status
     const payment = await Payment.findOne({ razorpayOrderId: razorpay_order_id });
-    
+
     if (!payment) {
       return res.status(404).json({
         success: false,
@@ -156,13 +156,13 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     payment.bank = paymentDetails.bank;
     payment.wallet = paymentDetails.wallet;
     payment.vpa = paymentDetails.vpa;
-    
+
     if (paymentDetails.card) {
       payment.cardLast4 = paymentDetails.card.last4;
       payment.cardNetwork = paymentDetails.card.network;
       payment.cardType = paymentDetails.card.type;
     }
-    
+
     payment.capturedAt = new Date();
     await payment.save();
 
@@ -170,7 +170,7 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     const Billing = require('../models/Billing');
     try {
       console.log('💳 Creating billing record for payment:', razorpay_payment_id);
-      
+
       // Calculate billing period (1 month from now)
       const billingStart = new Date();
       const billingEnd = new Date(billingStart);
@@ -180,7 +180,7 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
       const date = new Date();
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
-      
+
       // Find the latest invoice number for the current month
       const latestInvoice = await Billing.findOne({
         invoiceNumber: new RegExp(`^INV-${year}${month}-`)
@@ -201,7 +201,7 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
         subscription: payment.subscription,
         amount: payment.amount,
         status: 'paid',
-        dueDate: billingStart,
+        dueDate: billingEnd, // Due date is end of billing period (next billing date)
         billingPeriod: {
           start: billingStart,
           end: billingEnd
@@ -224,7 +224,7 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
         paymentDate: payment.capturedAt,
         transactionId: razorpay_payment_id
       });
-      
+
       await billingRecord.save();
       console.log('✅ Successfully created billing record:', billingRecord.invoiceNumber);
       console.log('📊 Invoice details:', {
@@ -242,16 +242,16 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
 
     // Check if this is a new subscription or existing one
     let subscription = payment.subscription ? await Subscription.findById(payment.subscription) : null;
-    
+
     // If no subscription exists and this was a new plan purchase, create it
     const isNewSub = payment.notes && payment.notes.get('isNewSubscription') === 'true';
     const planId = payment.notes ? payment.notes.get('planId') : null;
-    
+
     if (!subscription && isNewSub && planId) {
       // Fetch plan details
       const Plan = require('../models/Plan');
       const plan = await Plan.findById(planId);
-      
+
       if (!plan) {
         return res.status(404).json({
           success: false,
@@ -290,26 +290,26 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
           notes: `Initial payment for ${plan.name}`
         }]
       });
-      
+
       // Generate initial usage data for the new subscription
       console.log('📊 Generating initial usage data for new subscription...');
       const UsageLog = require('../models/UsageLog');
       const usageLogs = [];
       const now = new Date();
-      
+
       // Generate usage for the past 7 days (or since subscription start if less than 7 days)
       for (let i = 6; i >= 0; i--) {
         const date = new Date(now);
         date.setDate(date.getDate() - i);
-        
+
         // Only generate data from subscription start date onwards
         if (date >= startDate) {
           date.setHours(12, 0, 0, 0);
-          
+
           // Random realistic usage between 0.5-3 GB per day
           const downloadBytes = (Math.random() * 2.5 + 0.5) * 1024 * 1024 * 1024; // 0.5-3 GB
           const uploadBytes = (Math.random() * 0.4 + 0.1) * 1024 * 1024 * 1024; // 0.1-0.5 GB
-          
+
           usageLogs.push({
             userId: payment.user,
             deviceId: `device-${payment.user.toString().slice(-6)}`,
@@ -326,13 +326,13 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
           });
         }
       }
-      
+
       if (usageLogs.length > 0) {
         await UsageLog.insertMany(usageLogs);
         const totalGB = usageLogs.reduce((sum, log) => sum + log.download + log.upload, 0) / (1024 * 1024 * 1024);
         console.log(`✅ Generated ${usageLogs.length} usage logs with ${totalGB.toFixed(2)} GB total usage`);
       }
-      
+
       // Update payment with subscription ID
       payment.subscription = subscription._id;
       await payment.save();
@@ -347,12 +347,12 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     try {
       const emailService = require('../services/emailService');
       const user = await User.findById(payment.user);
-      
+
       if (user && user.email && subscription) {
         // Fetch plan details for email
         const Plan = require('../models/Plan');
         const planForEmail = await Plan.findById(subscription.plan);
-        
+
         if (planForEmail) {
           await emailService.sendWelcomeEmail(user.email, {
             customerName: `${user.firstName} ${user.lastName}`,

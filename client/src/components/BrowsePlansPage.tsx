@@ -32,25 +32,26 @@ const BrowsePlansPage: React.FC = () => {
       setLoading(true);
       setError(null);
       console.log('🔍 Fetching plans and user subscriptions...');
-      
+
       // Fetch plans and user subscriptions in parallel
       const [plansResponse, subscriptionsResponse] = await Promise.all([
         apiClient.get('/plans'),
         customerService.getCustomerSubscriptions()
       ]);
-      
+
       const plansResult = handleApiResponse(plansResponse);
       console.log('📋 Plans fetched:', plansResult);
-      
-      // Filter only active plans
-      const activePlans = (plansResult as any[]).filter((plan: any) => plan.isActive);
-      setPlans(activePlans);
-      
+
+      // Plans are already filtered by status='active' at backend
+      // Just use them directly (plansResult is either array or has plans property)
+      const plansArray = Array.isArray(plansResult) ? plansResult : ((plansResult as any)?.plans || []);
+      setPlans(plansArray);
+
       // Set user subscriptions
       const userSubs = subscriptionsResponse.subscriptions || [];
       setUserSubscriptions(userSubs);
-      
-      console.log(`✅ ${activePlans.length} active plans loaded`);
+
+      console.log(`✅ ${plansArray.length} active plans loaded`);
       console.log(`👤 ${userSubs.length} user subscriptions found`);
       console.log('📊 User subscriptions details:', userSubs);
       console.log('🔍 Has active subscription?', userSubs.some((sub: any) => sub.status === 'active'));
@@ -65,30 +66,30 @@ const BrowsePlansPage: React.FC = () => {
 
   const handleSelectPlan = (plan: any) => {
     console.log('📦 Plan selected:', plan);
-    
+
     // Check if user already has ANY active subscription
     if (hasAnyActiveSubscription()) {
       alert('⚠️ You already have an active subscription. You can only have one plan at a time. Please cancel your current subscription first.');
       return;
     }
-    
+
     // Check if user already has this specific plan
     if (isPlanAlreadyTaken(plan._id)) {
       alert('You already have an active subscription to this plan.');
       return;
     }
-    
+
     // Navigate to subscription page or open payment modal
-    navigate('/dashboard', { 
-      state: { 
+    navigate('/dashboard', {
+      state: {
         selectedPlan: plan,
         action: 'subscribe'
-      } 
+      }
     });
   };
 
   const isPlanAlreadyTaken = (planId: string): boolean => {
-    return userSubscriptions.some(subscription => 
+    return userSubscriptions.some(subscription =>
       subscription.plan?._id === planId && subscription.status === 'active'
     );
   };
@@ -113,7 +114,7 @@ const BrowsePlansPage: React.FC = () => {
   const getCategoryColor = (category: string) => {
     switch (category?.toLowerCase()) {
       case 'residential': return '#2196f3';
-      case 'business': return '#ff9800'; 
+      case 'business': return '#ff9800';
       case 'enterprise': return '#4caf50';
       default: return '#9e9e9e';
     }
@@ -173,8 +174,8 @@ const BrowsePlansPage: React.FC = () => {
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 3 }}>
           {plans.map((plan) => (
             <Box key={plan._id}>
-              <Card 
-                sx={{ 
+              <Card
+                sx={{
                   height: '100%',
                   display: 'flex',
                   flexDirection: 'column',
@@ -190,10 +191,10 @@ const BrowsePlansPage: React.FC = () => {
               >
                 {/* Category Badge */}
                 <Box sx={{ position: 'absolute', top: 16, right: 16 }}>
-                  <Chip 
-                    label={plan.category || 'General'} 
+                  <Chip
+                    label={plan.category || 'General'}
                     size="small"
-                    sx={{ 
+                    sx={{
                       bgcolor: getCategoryColor(plan.category),
                       color: 'white',
                       fontWeight: 'bold',
@@ -208,7 +209,7 @@ const BrowsePlansPage: React.FC = () => {
                     <Typography variant="h5" component="h2" gutterBottom sx={{ fontWeight: 'bold' }}>
                       {plan.name}
                     </Typography>
-                    
+
                     {/* Price */}
                     <Box sx={{ mb: 2 }}>
                       <Typography variant="h4" component="span" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
@@ -240,14 +241,14 @@ const BrowsePlansPage: React.FC = () => {
                     <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
                       Plan Features:
                     </Typography>
-                    
+
                     {/* Data Limit */}
                     {plan.features?.dataLimit && (
                       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                         <CheckCircle sx={{ mr: 1, color: '#4caf50', fontSize: 16 }} />
                         <Typography variant="body2">
-                          {plan.features.dataLimit.unlimited 
-                            ? 'Unlimited Data' 
+                          {plan.features.dataLimit.unlimited
+                            ? 'Unlimited Data'
                             : `${plan.features.dataLimit.amount} ${plan.features.dataLimit.unit} Data`
                           }
                         </Typography>
@@ -299,7 +300,7 @@ const BrowsePlansPage: React.FC = () => {
                   {plan.pricing?.yearly && (
                     <Box sx={{ textAlign: 'center', mb: 2, p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
                       <Typography variant="body2" color="text.secondary">
-                        Yearly: {formatPrice(plan.pricing.yearly)} 
+                        Yearly: {formatPrice(plan.pricing.yearly)}
                         {plan.pricing.setupFee && ` + ₹${plan.pricing.setupFee} setup`}
                       </Typography>
                     </Box>

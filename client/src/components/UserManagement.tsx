@@ -36,7 +36,8 @@ import {
   Block as BlockIcon,
   CheckCircle as ActivateIcon,
   Search as SearchIcon,
-  FilterList as FilterIcon
+  FilterList as FilterIcon,
+  LockReset as LockResetIcon
 } from '@mui/icons-material';
 import { User } from '../types/index';
 
@@ -47,6 +48,7 @@ interface UserManagementProps {
   onUpdateUser: (userId: string, userData: Partial<User>) => Promise<void>;
   onDeleteUser: (userId: string) => Promise<void>;
   onToggleUserStatus: (userId: string, status: 'active' | 'inactive' | 'suspended') => Promise<void>;
+  onResetPassword?: (userId: string) => Promise<{ temporaryPassword?: string }>;
   loading?: boolean;
 }
 
@@ -74,6 +76,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
   onUpdateUser,
   onDeleteUser,
   onToggleUserStatus,
+  onResetPassword,
   loading = false
 }) => {
   const [page, setPage] = useState(0);
@@ -81,13 +84,13 @@ const UserManagement: React.FC<UserManagementProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive' | 'suspended'>('all');
   const [filterRole, setFilterRole] = useState<'all' | 'customer' | 'admin'>('all');
-  
+
   // Dialog states
   const [openCreateDialog, setOpenCreateDialog] = useState(false);
   const [openEditDialog, setOpenEditDialog] = useState(false);
   const [openViewDialog, setOpenViewDialog] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
-  
+
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [formData, setFormData] = useState<UserFormData>({
     firstName: '',
@@ -105,7 +108,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
       country: ''
     }
   });
-  
+
   // Notification state
   const [notification, setNotification] = useState<{
     open: boolean;
@@ -119,15 +122,15 @@ const UserManagement: React.FC<UserManagementProps> = ({
 
   // Filter and search users
   const filteredUsers = (users || []).filter(user => {
-    const matchesSearch = 
+    const matchesSearch =
       (user.firstName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (user.lastName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (user.phone || '').includes(searchTerm);
-    
+
     const matchesStatus = filterStatus === 'all' || user.status === filterStatus;
     const matchesRole = filterRole === 'all' || user.role === filterRole;
-    
+
     return matchesSearch && matchesStatus && matchesRole;
   });
 
@@ -198,7 +201,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
       const response = await onCreateUser(formData);
       setOpenCreateDialog(false);
       resetFormData();
-      
+
       if (response.temporaryPassword) {
         showNotification(`User created successfully! Temporary password: ${response.temporaryPassword}`, 'success');
       } else {
@@ -211,7 +214,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
 
   const handleSubmitEdit = async () => {
     if (!selectedUser) return;
-    
+
     try {
       await onUpdateUser(selectedUser._id, formData);
       setOpenEditDialog(false);
@@ -225,7 +228,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
 
   const handleConfirmDelete = async () => {
     if (!selectedUser) return;
-    
+
     try {
       await onDeleteUser(selectedUser._id);
       setOpenDeleteDialog(false);
@@ -247,6 +250,28 @@ const UserManagement: React.FC<UserManagementProps> = ({
 
   const showNotification = (message: string, severity: 'success' | 'error' | 'info' | 'warning') => {
     setNotification({ open: true, message, severity });
+  };
+
+  const handleResetUserPassword = async (user: User) => {
+    if (!window.confirm(`Are you sure you want to reset the password for ${user.email}?`)) {
+      return;
+    }
+
+    if (!onResetPassword) {
+      showNotification('Reset password functionality not available', 'error');
+      return;
+    }
+
+    try {
+      const response = await onResetPassword(user._id);
+      if (response.temporaryPassword) {
+        showNotification(`Password reset! Temporary password: ${response.temporaryPassword}`, 'success');
+      } else {
+        showNotification('Password reset successfully', 'success');
+      }
+    } catch (error) {
+      showNotification('Failed to reset password', 'error');
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -411,16 +436,16 @@ const UserManagement: React.FC<UserManagementProps> = ({
                   <TableCell>
                     <Box>
                       <Typography variant="subtitle2">
-                        {user.firstName && user.lastName 
+                        {user.firstName && user.lastName
                           ? `${user.firstName} ${user.lastName}`
                           : user.email?.split('@')[0] || 'Unknown User'
                         }
                       </Typography>
                       {user.emailVerified && (
-                        <Chip 
-                          size="small" 
-                          label="Verified" 
-                          color="success" 
+                        <Chip
+                          size="small"
+                          label="Verified"
+                          color="success"
                           variant="outlined"
                           sx={{ mt: 0.5 }}
                         />
@@ -430,14 +455,14 @@ const UserManagement: React.FC<UserManagementProps> = ({
                   <TableCell>{user.email || 'No email'}</TableCell>
                   <TableCell>{user.phone || 'N/A'}</TableCell>
                   <TableCell>
-                    <Chip 
+                    <Chip
                       label={(user.role || 'unknown').charAt(0).toUpperCase() + (user.role || 'unknown').slice(1)}
                       color={getRoleColor(user.role) as any}
                       size="small"
                     />
                   </TableCell>
                   <TableCell>
-                    <Chip 
+                    <Chip
                       label={(user.status || 'unknown').charAt(0).toUpperCase() + (user.status || 'unknown').slice(1)}
                       color={getStatusColor(user.status) as any}
                       size="small"
@@ -458,10 +483,21 @@ const UserManagement: React.FC<UserManagementProps> = ({
                           <EditIcon />
                         </IconButton>
                       </Tooltip>
+                      {onResetPassword && user.role !== 'admin' && (
+                        <Tooltip title="Reset Password">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleResetUserPassword(user)}
+                            color="info"
+                          >
+                            <LockResetIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       {user.status === 'active' ? (
                         <Tooltip title="Suspend User">
-                          <IconButton 
-                            size="small" 
+                          <IconButton
+                            size="small"
                             onClick={() => handleToggleStatus(user, 'suspended')}
                             color="warning"
                           >
@@ -470,8 +506,8 @@ const UserManagement: React.FC<UserManagementProps> = ({
                         </Tooltip>
                       ) : (
                         <Tooltip title="Activate User">
-                          <IconButton 
-                            size="small" 
+                          <IconButton
+                            size="small"
                             onClick={() => handleToggleStatus(user, 'active')}
                             color="success"
                           >
@@ -480,8 +516,8 @@ const UserManagement: React.FC<UserManagementProps> = ({
                         </Tooltip>
                       )}
                       <Tooltip title="Delete User">
-                        <IconButton 
-                          size="small" 
+                        <IconButton
+                          size="small"
                           onClick={() => handleDeleteUser(user)}
                           color="error"
                         >
@@ -503,10 +539,10 @@ const UserManagement: React.FC<UserManagementProps> = ({
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
         />
-      </TableContainer>
+      </TableContainer >
 
       {/* Create User Dialog */}
-      <Dialog open={openCreateDialog} onClose={() => setOpenCreateDialog(false)} maxWidth="md" fullWidth>
+      < Dialog open={openCreateDialog} onClose={() => setOpenCreateDialog(false)} maxWidth="md" fullWidth >
         <DialogTitle>Create New User</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mt: 1 }}>
@@ -514,13 +550,13 @@ const UserManagement: React.FC<UserManagementProps> = ({
               fullWidth
               label="First Name"
               value={formData.firstName}
-              onChange={(e) => setFormData({...formData, firstName: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
             />
             <TextField
               fullWidth
               label="Last Name"
               value={formData.lastName}
-              onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
             />
             <TextField
               fullWidth
@@ -528,28 +564,28 @@ const UserManagement: React.FC<UserManagementProps> = ({
               type="email"
               required
               value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
             <TextField
               fullWidth
               label="Password (Optional)"
               type="password"
               value={formData.password || ''}
-              onChange={(e) => setFormData({...formData, password: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               helperText="Leave empty to generate a secure password automatically"
             />
             <TextField
               fullWidth
               label="Phone"
               value={formData.phone}
-              onChange={(e) => setFormData({...formData, phone: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             />
             <FormControl fullWidth>
               <InputLabel>Role</InputLabel>
               <Select
                 value={formData.role}
                 label="Role"
-                onChange={(e) => setFormData({...formData, role: e.target.value as any})}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
               >
                 <MenuItem value="customer">Customer</MenuItem>
                 <MenuItem value="admin">Administrator</MenuItem>
@@ -560,7 +596,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
               <Select
                 value={formData.status}
                 label="Status"
-                onChange={(e) => setFormData({...formData, status: e.target.value as any})}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
               >
                 <MenuItem value="active">Active</MenuItem>
                 <MenuItem value="inactive">Inactive</MenuItem>
@@ -568,7 +604,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
               </Select>
             </FormControl>
           </Box>
-          
+
           {/* Address Information */}
           <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>Address Information</Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 2 }}>
@@ -612,10 +648,10 @@ const UserManagement: React.FC<UserManagementProps> = ({
           <Button onClick={() => setOpenCreateDialog(false)}>Cancel</Button>
           <Button onClick={handleSubmitCreate} variant="contained">Create User</Button>
         </DialogActions>
-      </Dialog>
+      </Dialog >
 
       {/* Edit User Dialog */}
-      <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)} maxWidth="md" fullWidth>
+      < Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)} maxWidth="md" fullWidth >
         <DialogTitle>Edit User</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mt: 1 }}>
@@ -623,13 +659,13 @@ const UserManagement: React.FC<UserManagementProps> = ({
               fullWidth
               label="First Name"
               value={formData.firstName}
-              onChange={(e) => setFormData({...formData, firstName: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
             />
             <TextField
               fullWidth
               label="Last Name"
               value={formData.lastName}
-              onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
             />
             <TextField
               fullWidth
@@ -637,20 +673,20 @@ const UserManagement: React.FC<UserManagementProps> = ({
               type="email"
               required
               value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
             <TextField
               fullWidth
               label="Phone"
               value={formData.phone}
-              onChange={(e) => setFormData({...formData, phone: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             />
             <FormControl fullWidth>
               <InputLabel>Role</InputLabel>
               <Select
                 value={formData.role}
                 label="Role"
-                onChange={(e) => setFormData({...formData, role: e.target.value as any})}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
               >
                 <MenuItem value="customer">Customer</MenuItem>
                 <MenuItem value="admin">Administrator</MenuItem>
@@ -661,7 +697,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
               <Select
                 value={formData.status}
                 label="Status"
-                onChange={(e) => setFormData({...formData, status: e.target.value as any})}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
               >
                 <MenuItem value="active">Active</MenuItem>
                 <MenuItem value="inactive">Inactive</MenuItem>
@@ -669,7 +705,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
               </Select>
             </FormControl>
           </Box>
-          
+
           {/* Address Information */}
           <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>Address Information</Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 2 }}>
@@ -713,10 +749,10 @@ const UserManagement: React.FC<UserManagementProps> = ({
           <Button onClick={() => setOpenEditDialog(false)}>Cancel</Button>
           <Button onClick={handleSubmitEdit} variant="contained">Update User</Button>
         </DialogActions>
-      </Dialog>
+      </Dialog >
 
       {/* View User Dialog */}
-      <Dialog open={openViewDialog} onClose={() => setOpenViewDialog(false)} maxWidth="md" fullWidth>
+      < Dialog open={openViewDialog} onClose={() => setOpenViewDialog(false)} maxWidth="md" fullWidth >
         <DialogTitle>User Details</DialogTitle>
         <DialogContent>
           {selectedUser && (
@@ -724,7 +760,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
               <Box>
                 <Typography variant="subtitle2" color="text.secondary">Name</Typography>
                 <Typography variant="body1">
-                  {selectedUser.firstName && selectedUser.lastName 
+                  {selectedUser.firstName && selectedUser.lastName
                     ? `${selectedUser.firstName} ${selectedUser.lastName}`
                     : 'N/A'
                   }
@@ -740,7 +776,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
               </Box>
               <Box>
                 <Typography variant="subtitle2" color="text.secondary">Role</Typography>
-                <Chip 
+                <Chip
                   label={(selectedUser.role || 'unknown').charAt(0).toUpperCase() + (selectedUser.role || 'unknown').slice(1)}
                   color={getRoleColor(selectedUser.role) as any}
                   size="small"
@@ -748,7 +784,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
               </Box>
               <Box>
                 <Typography variant="subtitle2" color="text.secondary">Status</Typography>
-                <Chip 
+                <Chip
                   label={(selectedUser.status || 'unknown').charAt(0).toUpperCase() + (selectedUser.status || 'unknown').slice(1)}
                   color={getStatusColor(selectedUser.status) as any}
                   size="small"
@@ -756,7 +792,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
               </Box>
               <Box>
                 <Typography variant="subtitle2" color="text.secondary">Email Verified</Typography>
-                <Chip 
+                <Chip
                   label={selectedUser.emailVerified ? 'Verified' : 'Not Verified'}
                   color={selectedUser.emailVerified ? 'success' : 'warning'}
                   size="small"
@@ -807,10 +843,10 @@ const UserManagement: React.FC<UserManagementProps> = ({
         <DialogActions>
           <Button onClick={() => setOpenViewDialog(false)}>Close</Button>
         </DialogActions>
-      </Dialog>
+      </Dialog >
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)}>
+      < Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)}>
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>
           <Typography>
@@ -823,24 +859,24 @@ const UserManagement: React.FC<UserManagementProps> = ({
             Delete
           </Button>
         </DialogActions>
-      </Dialog>
+      </Dialog >
 
       {/* Notification Snackbar */}
-      <Snackbar
+      < Snackbar
         open={notification.open}
         autoHideDuration={6000}
         onClose={() => setNotification({ ...notification, open: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert 
-          onClose={() => setNotification({ ...notification, open: false })} 
+        <Alert
+          onClose={() => setNotification({ ...notification, open: false })}
           severity={notification.severity}
           sx={{ width: '100%' }}
         >
           {notification.message}
         </Alert>
-      </Snackbar>
-    </Box>
+      </Snackbar >
+    </Box >
   );
 };
 

@@ -33,7 +33,7 @@ const RegisterPage: React.FC = () => {
       city: '',
       state: '',
       zipCode: '',
-      country: 'USA',
+      country: 'India',
     },
     agreeToTerms: false,
   });
@@ -50,7 +50,7 @@ const RegisterPage: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
-    
+
     if (name.includes('.')) {
       const [parent, child] = name.split('.');
       setFormData({
@@ -79,7 +79,7 @@ const RegisterPage: React.FC = () => {
     if (!formData.address.street.trim()) return 'Street address is required';
     if (!formData.address.city.trim()) return 'City is required';
     if (!formData.address.state.trim()) return 'State is required';
-    if (!formData.address.zipCode.trim()) return 'ZIP code is required';
+    if (!formData.address.zipCode.trim()) return 'PIN code is required';
     if (!formData.agreeToTerms) return 'You must agree to the terms and conditions';
     return null;
   };
@@ -110,7 +110,7 @@ const RegisterPage: React.FC = () => {
 
       await register(registerData);
       setSuccess('Registration successful! Redirecting to dashboard...');
-      
+
       // Navigation is handled by useEffect above
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please try again.');
@@ -120,11 +120,15 @@ const RegisterPage: React.FC = () => {
   };
 
   const states = [
-    'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
-    'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
-    'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
-    'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
-    'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
+    'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+    'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand',
+    'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
+    'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab',
+    'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
+    'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+    // Union Territories
+    'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu',
+    'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
   ];
 
   return (
@@ -212,7 +216,7 @@ const RegisterPage: React.FC = () => {
                 margin="normal"
                 required
                 disabled={loading}
-                placeholder="+1 (555) 123-4567"
+                placeholder="+91 98765 43210"
               />
 
               {/* Password Fields */}
@@ -275,7 +279,7 @@ const RegisterPage: React.FC = () => {
                   onChange={handleInputChange}
                   required
                   disabled={loading}
-                  sx={{ minWidth: 120 }}
+                  sx={{ minWidth: 200 }}
                 >
                   {states.map((state) => (
                     <MenuItem key={state} value={state}>
@@ -284,12 +288,13 @@ const RegisterPage: React.FC = () => {
                   ))}
                 </TextField>
                 <TextField
-                  label="ZIP Code"
+                  label="PIN Code"
                   name="address.zipCode"
                   value={formData.address.zipCode}
                   onChange={handleInputChange}
                   required
                   disabled={loading}
+                  placeholder="6-digit PIN"
                   sx={{ minWidth: 120 }}
                 />
               </Box>

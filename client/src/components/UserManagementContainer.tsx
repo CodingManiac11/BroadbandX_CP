@@ -32,7 +32,7 @@ const UserManagementContainer: React.FC<UserManagementContainerProps> = ({ onDat
       const errorMessage = err instanceof Error ? err.message : 'Failed to load users';
       setError(errorMessage);
       console.error('Error loading users:', err);
-      
+
       // Check if it's an authentication error
       if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
         setError('Authentication failed. Please log in as admin.');
@@ -68,8 +68,8 @@ const UserManagementContainer: React.FC<UserManagementContainerProps> = ({ onDat
     try {
       console.log('Updating user via adminService...');
       const updatedUser = await adminService.updateUser(userId, userData);
-      setUsers(prevUsers => 
-        prevUsers.map(user => 
+      setUsers(prevUsers =>
+        prevUsers.map(user =>
           user._id === userId ? updatedUser : user
         )
       );
@@ -100,8 +100,8 @@ const UserManagementContainer: React.FC<UserManagementContainerProps> = ({ onDat
     try {
       console.log('Updating user status via adminService...');
       const updatedUser = await adminService.updateUserStatus(userId, status);
-      setUsers(prevUsers => 
-        prevUsers.map(user => 
+      setUsers(prevUsers =>
+        prevUsers.map(user =>
           user._id === userId ? updatedUser : user
         )
       );
@@ -113,14 +113,26 @@ const UserManagementContainer: React.FC<UserManagementContainerProps> = ({ onDat
     }
   };
 
+  const handleResetPassword = async (userId: string): Promise<{ temporaryPassword?: string }> => {
+    try {
+      console.log('Resetting password via adminService...');
+      const response = await adminService.resetUserPassword(userId);
+      console.log('Password reset successfully for:', response.email);
+      return { temporaryPassword: response.temporaryPassword };
+    } catch (err) {
+      console.error('Error resetting password:', err);
+      throw err;
+    }
+  };
+
   if (loading && users.length === 0) {
     return (
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          minHeight: '400px' 
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '400px'
         }}
       >
         <CircularProgress size={60} />
@@ -131,8 +143,8 @@ const UserManagementContainer: React.FC<UserManagementContainerProps> = ({ onDat
   if (error) {
     return (
       <Box sx={{ p: 3 }}>
-        <Alert 
-          severity="error" 
+        <Alert
+          severity="error"
           action={
             <Box sx={{ ml: 2 }}>
               <button onClick={loadUsers}>Retry</button>
@@ -153,6 +165,7 @@ const UserManagementContainer: React.FC<UserManagementContainerProps> = ({ onDat
       onUpdateUser={handleUpdateUser}
       onDeleteUser={handleDeleteUser}
       onToggleUserStatus={handleToggleUserStatus}
+      onResetPassword={handleResetPassword}
       loading={loading}
     />
   );

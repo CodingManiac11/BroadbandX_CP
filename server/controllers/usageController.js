@@ -11,10 +11,10 @@ const mongoose = require('mongoose');
 // @access  Private
 exports.getCurrentUsage = asyncHandler(async (req, res) => {
   const userId = req.params.userId || req.user._id || req.user.id;
-  
+
   console.log('🔍 getCurrentUsage - User ID:', userId);
   console.log('🔍 req.user:', req.user);
-  
+
   // Get user's subscription with populated plan details
   const subscription = await Subscription.findOne({ user: userId, status: 'active' }).populate('plan');
   if (!subscription) {
@@ -36,13 +36,33 @@ exports.getCurrentUsage = asyncHandler(async (req, res) => {
     });
   }
 
+  // Handle case where plan was deleted but subscription still exists
+  if (!subscription.plan) {
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalDownload: 0,
+        totalUpload: 0,
+        dataLimit: 0,
+        usagePercentage: 0,
+        period: 'current',
+        billingCycle: {
+          start: subscription.startDate?.toISOString() || new Date().toISOString(),
+          end: subscription.endDate?.toISOString() || new Date().toISOString()
+        },
+        lastUpdated: new Date().toISOString()
+      },
+      message: 'Subscription plan not found - plan may have been deleted'
+    });
+  }
+
   // Get usage from subscription start date (not start of month)
   // This ensures users only see usage from when they actually subscribed
   const subscriptionStartDate = new Date(subscription.startDate || subscription.createdAt);
 
   // Convert userId to ObjectId for aggregation
-  const userObjectId = mongoose.Types.ObjectId.isValid(userId) 
-    ? new mongoose.Types.ObjectId(userId) 
+  const userObjectId = mongoose.Types.ObjectId.isValid(userId)
+    ? new mongoose.Types.ObjectId(userId)
     : userId;
 
   console.log('🔍 Querying UsageLog with userId:', userObjectId);
@@ -103,18 +123,18 @@ exports.getCurrentUsage = asyncHandler(async (req, res) => {
   };
 
   const totalUsage = usageData.totalDownload + usageData.totalUpload;
-  
+
   // Debug: Check plan structure
   console.log('🔍 PLAN DEBUG:');
   console.log('Plan Name:', subscription.plan?.name);
   console.log('Plan Features:', JSON.stringify(subscription.plan?.features, null, 2));
   console.log('Data Limit Path:', subscription.plan?.features?.dataLimit);
-  
+
   // Convert data limit from GB to bytes for comparison (assuming features.dataLimit.amount is in GB)
-  const dataLimitGB = subscription.plan.features?.dataLimit?.amount || 0;
+  const dataLimitGB = subscription.plan?.features?.dataLimit?.amount || 0;
   const dataLimitBytes = dataLimitGB * 1024 * 1024 * 1024;
   const usagePercentage = dataLimitBytes > 0 ? (totalUsage / dataLimitBytes) * 100 : 0;
-  
+
   console.log('✅ Data Limit GB:', dataLimitGB);
   console.log('✅ Data Limit Bytes:', dataLimitBytes);
   console.log('✅ Usage Percentage:', usagePercentage);
@@ -150,7 +170,7 @@ exports.getDailyUsage = asyncHandler(async (req, res) => {
 
   // Get subscription to check start date
   const subscription = await Subscription.findOne({ user: userId, status: 'active' });
-  
+
   if (!subscription) {
     return res.status(404).json({
       success: false,
@@ -160,14 +180,14 @@ exports.getDailyUsage = asyncHandler(async (req, res) => {
 
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
-  
+
   // Use subscription start date as minimum date
   const subscriptionStartDate = new Date(subscription.startDate || subscription.createdAt);
   const filterStartDate = startDate > subscriptionStartDate ? startDate : subscriptionStartDate;
 
   // Convert userId to ObjectId for aggregation
-  const userObjectId = mongoose.Types.ObjectId.isValid(userId) 
-    ? new mongoose.Types.ObjectId(userId) 
+  const userObjectId = mongoose.Types.ObjectId.isValid(userId)
+    ? new mongoose.Types.ObjectId(userId)
     : userId;
 
   console.log('🔍 Querying UsageLog with userId:', userObjectId);
@@ -299,17 +319,25 @@ exports.getHourlyUsage = asyncHandler(async (req, res) => {
 // @access  Private
 exports.generateSampleUsage = asyncHandler(async (req, res) => {
   const userId = req.params.userId || req.user.id;
-  
+
   // Get user's active subscription
   const subscription = await Subscription.findOne({ user: userId, status: 'active' }).populate('plan');
-  
+
   if (!subscription) {
     return res.status(404).json({
       success: false,
       message: 'No active subscription found'
     });
   }
-  
+
+  // Handle deleted plan
+  if (!subscription.plan) {
+    return res.status(400).json({
+      success: false,
+      message: 'Subscription plan not found - plan may have been deleted'
+    });
+  }
+
   // Check if user already has usage data
   const existingLogs = await UsageLog.countDocuments({ userId });
   if (existingLogs > 0) {
@@ -318,24 +346,24 @@ exports.generateSampleUsage = asyncHandler(async (req, res) => {
       message: `User already has ${existingLogs} usage logs. Delete them first if you want to regenerate.`
     });
   }
-  
+
   const sampleLogs = [];
   const now = new Date();
   const startDate = new Date(subscription.startDate || subscription.createdAt);
-  
+
   // Generate usage for the past 7 days or since subscription start
   for (let i = 6; i >= 0; i--) {
     const date = new Date(now);
     date.setDate(date.getDate() - i);
-    
+
     // Only generate data from subscription start date onwards
     if (date >= startDate) {
       date.setHours(12, 0, 0, 0);
-      
+
       // Random realistic usage between 0.5-3 GB per day
       const downloadBytes = (Math.random() * 2.5 + 0.5) * 1024 * 1024 * 1024; // 0.5-3 GB
       const uploadBytes = (Math.random() * 0.4 + 0.1) * 1024 * 1024 * 1024; // 0.1-0.5 GB
-      
+
       sampleLogs.push({
         userId,
         deviceId: `device-${userId.toString().slice(-6)}`,
@@ -352,13 +380,13 @@ exports.generateSampleUsage = asyncHandler(async (req, res) => {
       });
     }
   }
-  
+
   await UsageLog.insertMany(sampleLogs);
-  
+
   const totalDownload = sampleLogs.reduce((sum, log) => sum + log.download, 0);
   const totalUpload = sampleLogs.reduce((sum, log) => sum + log.upload, 0);
   const totalGB = (totalDownload + totalUpload) / (1024 * 1024 * 1024);
-  
+
   res.status(200).json({
     success: true,
     message: `Generated ${sampleLogs.length} usage logs`,
@@ -376,12 +404,12 @@ exports.generateSampleUsage = asyncHandler(async (req, res) => {
 // @access  Private (Admin only)
 exports.generateUsageForAll = asyncHandler(async (req, res) => {
   const { daysBack = 30, forceRegenerate = false } = req.body;
-  
+
   const { generateUsageForAllUsers } = require('../utils/usageGenerator');
-  
+
   // Generate realistic usage data for all users
   const result = await generateUsageForAllUsers(parseInt(daysBack));
-  
+
   res.status(200).json({
     success: true,
     message: `Generated usage for ${result.generated} users, skipped ${result.skipped} users`,

@@ -116,13 +116,124 @@ router.get('/export/csv', authMiddleware, async (req, res) => {
     // Set headers for CSV download
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    
+
     res.send(csv);
   } catch (error) {
     console.error('Error exporting usage to CSV:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to export usage data',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/usage/export/user-summary
+ * Export usage per user as CSV with both current month and subscription period totals
+ */
+router.get('/export/user-summary', authMiddleware, async (req, res) => {
+  try {
+    // Only admins can access this
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+
+    const Subscription = require('../models/Subscription');
+
+    // Get all active subscriptions with user and plan data
+    const subscriptions = await Subscription.find({
+      status: { $in: ['active', 'trial'] }
+    })
+      .populate('user', 'firstName lastName email')
+      .populate('plan', 'name')
+      .lean();
+
+    // For each subscription, get usage stats
+    const userSummaries = await Promise.all(subscriptions.map(async (sub) => {
+      if (!sub.user) return null;
+
+      const userId = sub.user._id;
+      const subscriptionStart = new Date(sub.startDate);
+      const currentMonthStart = new Date();
+      currentMonthStart.setDate(1);
+      currentMonthStart.setHours(0, 0, 0, 0);
+
+      // Get current month usage
+      const currentMonthUsage = await UsageLog.aggregate([
+        { $match: { userId: userId, timestamp: { $gte: currentMonthStart } } },
+        {
+          $group: {
+            _id: null,
+            totalDownload: { $sum: '$download' },
+            totalUpload: { $sum: '$upload' },
+            avgDownloadSpeed: { $avg: '$downloadSpeed' },
+            avgUploadSpeed: { $avg: '$uploadSpeed' },
+            sessions: { $sum: 1 }
+          }
+        }
+      ]);
+
+      // Get subscription period usage
+      const subscriptionUsage = await UsageLog.aggregate([
+        { $match: { userId: userId, timestamp: { $gte: subscriptionStart } } },
+        {
+          $group: {
+            _id: null,
+            totalDownload: { $sum: '$download' },
+            totalUpload: { $sum: '$upload' },
+            avgDownloadSpeed: { $avg: '$downloadSpeed' },
+            avgUploadSpeed: { $avg: '$uploadSpeed' },
+            sessions: { $sum: 1 }
+          }
+        }
+      ]);
+
+      const cm = currentMonthUsage[0] || { totalDownload: 0, totalUpload: 0, avgDownloadSpeed: 0, avgUploadSpeed: 0, sessions: 0 };
+      const sp = subscriptionUsage[0] || { totalDownload: 0, totalUpload: 0, avgDownloadSpeed: 0, avgUploadSpeed: 0, sessions: 0 };
+      const GB = 1073741824;
+
+      return {
+        userName: `${sub.user.firstName || ''} ${sub.user.lastName || ''}`.trim() || 'Unknown',
+        userEmail: sub.user.email || 'N/A',
+        planName: sub.plan?.name || 'No Plan',
+        subscriptionStart: sub.startDate ? new Date(sub.startDate).toISOString().split('T')[0] : 'N/A',
+        cmDownload: Math.round((cm.totalDownload / GB) * 100) / 100,
+        cmUpload: Math.round((cm.totalUpload / GB) * 100) / 100,
+        cmTotal: Math.round(((cm.totalDownload + cm.totalUpload) / GB) * 100) / 100,
+        cmSessions: cm.sessions,
+        spDownload: Math.round((sp.totalDownload / GB) * 100) / 100,
+        spUpload: Math.round((sp.totalUpload / GB) * 100) / 100,
+        spTotal: Math.round(((sp.totalDownload + sp.totalUpload) / GB) * 100) / 100,
+        spSessions: sp.sessions,
+        avgDlSpeed: Math.round((sp.avgDownloadSpeed || 0) * 100) / 100,
+        avgUlSpeed: Math.round((sp.avgUploadSpeed || 0) * 100) / 100
+      };
+    }));
+
+    const validSummaries = userSummaries.filter(s => s !== null);
+
+    const headers = 'Customer Name,Email,Plan,Subscription Start,Current Month Download (GB),Current Month Upload (GB),Current Month Total (GB),Current Month Sessions,Subscription Total Download (GB),Subscription Total Upload (GB),Subscription Total Usage (GB),Subscription Total Sessions,Avg Download Speed (Mbps),Avg Upload Speed (Mbps)\n';
+
+    const rows = validSummaries.map(u =>
+      `"${u.userName}","${u.userEmail}","${u.planName}","${u.subscriptionStart}",${u.cmDownload},${u.cmUpload},${u.cmTotal},${u.cmSessions},${u.spDownload},${u.spUpload},${u.spTotal},${u.spSessions},${u.avgDlSpeed},${u.avgUlSpeed}`
+    ).join('\n');
+
+    const csv = headers + rows;
+    const filename = `user_usage_summary_${new Date().toISOString().split('T')[0]}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+
+  } catch (error) {
+    console.error('Error exporting user summary:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to export user summary',
       error: error.message
     });
   }

@@ -18,6 +18,12 @@ BroadbandX is a full-stack subscription management platform with integrated mach
 - 💰 **25% projected revenue increase** through dynamic pricing
 - ⚡ **Real-time** WebSocket notifications
 
+**Recent Updates (v2.1):**
+- 🚀 **Performance Optimized:** 60% faster load times with code splitting
+- 📧 **Automated Alerts:** Instant email notifications for high-risk customers
+- 📅 **Scheduled Reports:** Weekly & Monthly PDF analytics reports
+- 🛡️ **Retention Toolkit:** Integrated actions for calls, discounts, and upgrades
+
 ---
 
 ## Features
@@ -30,6 +36,8 @@ BroadbandX is a full-stack subscription management platform with integrated mach
 | **Usage Tracking** | Real-time monitoring, usage alerts, CSV exports |
 | **Support** | Ticket system with admin responses, real-time updates |
 | **ML Predictions** | Churn risk, customer segments, dynamic pricing |
+| **AI Dashboard** | Risk visualization, retention actions, scheduled reports |
+| **Alerts & Reports** | Automated high-risk email alerts, weekly/monthly PDF reports |
 
 ---
 
@@ -124,6 +132,10 @@ RAZORPAY_KEY_SECRET=your_razorpay_secret
 RESEND_API_KEY=your_resend_api_key
 CLIENT_URL=http://localhost:3000
 ML_SERVICE_URL=http://localhost:8000
+ADMIN_EMAIL=your_admin_email@example.com
+ENABLE_CHURN_ALERTS=true
+WEEKLY_REPORTS_ENABLED=true
+MONTHLY_REPORTS_ENABLED=true
 ```
 
 ### Running the Application

@@ -15,7 +15,9 @@ const {
   deleteUser,
   getSystemHealth,
   getAllSubscriptions,
-  activateSubscription
+  activateSubscription,
+  cancelSubscription,
+  resetUserPassword
 } = require('../controllers/adminController');
 const { adminOnly, authenticateToken } = require('../middleware/auth');
 const router = express.Router();
@@ -28,6 +30,7 @@ router.use(adminOnly);
 router.get('/dashboard', getDashboardStats);
 router.get('/subscriptions', getAllSubscriptions);
 router.put('/subscriptions/:id/activate', activateSubscription);
+router.put('/subscriptions/:id/cancel', cancelSubscription);
 
 // Analytics routes
 router.get('/analytics/subscriptions', getSubscriptionAnalytics);
@@ -43,6 +46,7 @@ router.get('/users/:id', getUserById);
 router.put('/users/:id', updateUser);
 router.delete('/users/:id', deleteUser);
 router.put('/users/:id/status', updateUserStatus);
+router.put('/users/:id/reset-password', resetUserPassword);
 router.post('/users/admin', createAdminUser);
 
 // System health

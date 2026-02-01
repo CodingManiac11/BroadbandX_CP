@@ -26,6 +26,8 @@ const feedbackRoutes = require('./routes/feedback');
 // const analyticsRoutes = require('./routes/analytics');
 const recommendationRoutes = require('./routes/recommendations');
 const pricingRoutes = require('./routes/pricing');
+const aiPricingRoutes = require('./routes/aiPricingRoutes');
+const supportRoutes = require('./routes/supportRoutes');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler');
@@ -34,6 +36,10 @@ const RealTimeEvents = require('./utils/realTimeEvents');
 
 // Import services
 const usageAnalyticsService = require('./services/UsageAnalyticsService');
+const churnMonitoringService = require('./services/ChurnMonitoringService');
+const reminderSchedulerService = require('./services/ReminderSchedulerService');
+const usageSimulatorService = require('./services/UsageSimulatorService');
+const scheduledReportService = require('./services/scheduledReportService');
 
 const app = express();
 const server = createServer(app);
@@ -77,8 +83,8 @@ const corsOptions = {
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
+    'Content-Type',
+    'Authorization',
     'X-Requested-With',
     'Accept',
     'Origin',
@@ -115,7 +121,7 @@ const connectDB = async () => {
     }
 
     console.log('🔄 Connecting to MongoDB...');
-    
+
     const conn = await mongoose.connect(process.env.MONGO_URI, {
       // Connection pool settings
       maxPoolSize: 10,
@@ -133,12 +139,32 @@ const connectDB = async () => {
     });
 
     console.log(`✅ Connected to MongoDB Atlas: ${conn.connection.host}`);
-    
+
     // Start usage analytics service
     console.log('📊 Starting Usage Analytics Service...');
     usageAnalyticsService.start();
     console.log('✅ Usage Analytics Service started - will update every 4 hours');
-    
+
+    // Start churn monitoring service
+    console.log('🔍 Starting Churn Monitoring Service...');
+    churnMonitoringService.start();
+    console.log('✅ Churn Monitoring Service started - will scan every 6 hours');
+
+    // Start billing reminder scheduler service
+    console.log('🔔 Starting Reminder Scheduler Service...');
+    reminderSchedulerService.start();
+    console.log('✅ Reminder Scheduler Service started - will send reminders for expiring plans');
+
+    // Start usage simulator service
+    console.log('📈 Starting Usage Simulator Service...');
+    usageSimulatorService.start();
+    console.log('✅ Usage Simulator Service started - will generate usage data every hour');
+
+    // Start scheduled report service (weekly/monthly AI pricing reports)
+    console.log('📅 Starting Scheduled Report Service...');
+    scheduledReportService.start();
+    console.log('✅ Scheduled Report Service started - will email reports on schedule');
+
     // Handle connection events
     mongoose.connection.on('error', (err) => {
       console.error('❌ MongoDB connection error:', err);
@@ -151,9 +177,9 @@ const connectDB = async () => {
     mongoose.connection.on('reconnected', () => {
       console.log('✅ MongoDB reconnected');
     });
-    
+
     return conn;
-    
+
   } catch (error) {
     console.error('❌ MongoDB Atlas connection failed:', error.message);
     console.error('🔍 Please check your MONGO_URI in .env file');
@@ -176,7 +202,7 @@ io.on('connection', (socket) => {
     socket.userId = userId;
     socket.join(`user_${userId}`);
     console.log(`👤 User ${userId} authenticated and joined personal room`);
-    
+
     // Send confirmation
     socket.emit('authenticated', { userId, socketId: socket.id });
   });
@@ -191,12 +217,14 @@ io.on('connection', (socket) => {
   // Handle admin room joining
   socket.on('join_admin_room', () => {
     socket.join('admin_room');
+    socket.join('admins'); // Also join 'admins' room for ticket notifications
     console.log(`👑 Admin user joined admin room: ${socket.id}`);
   });
 
   // Handle admin room leaving
   socket.on('leave_admin_room', () => {
     socket.leave('admin_room');
+    socket.leave('admins');
     console.log(`👋 User left admin room: ${socket.id}`);
   });
 
@@ -213,6 +241,7 @@ io.on('connection', (socket) => {
 
 // Make realTimeEvents available globally
 global.realTimeEvents = realTimeEvents;
+global.io = io; // Make io available for ticket notifications
 
 // Health check route
 app.get('/health', (req, res) => {
@@ -242,31 +271,77 @@ app.use('/api/pdf', require('./routes/pdf')); // Add PDF routes
 // app.use('/api/analytics', authenticateToken, analyticsRoutes);
 app.use('/api/recommendations', authenticateToken, recommendationRoutes);
 app.use('/api/admin/pricing', authenticateToken, pricingRoutes);
+app.use('/api/admin/ai-pricing', authenticateToken, aiPricingRoutes);
+app.use('/api/support', supportRoutes);
+
+// Churn Monitoring API endpoint
+app.get('/api/admin/churn-alerts', authenticateToken, async (req, res) => {
+  try {
+    const result = churnMonitoringService.getLastScanResult();
+    if (!result) {
+      // Trigger a scan if no results available
+      const scanResult = await churnMonitoringService.triggerScan();
+      return res.json({
+        success: true,
+        data: scanResult,
+        message: 'Fresh scan completed'
+      });
+    }
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get churn alerts',
+      error: error.message
+    });
+  }
+});
+
+// Trigger manual churn scan
+app.post('/api/admin/churn-scan', authenticateToken, async (req, res) => {
+  try {
+    const result = await churnMonitoringService.triggerScan();
+    res.json({
+      success: true,
+      data: result,
+      message: 'Churn scan completed'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to run churn scan',
+      error: error.message
+    });
+  }
+});
 
 // Payment completion endpoint
 app.post('/api/billing/complete-payment', (req, res) => {
   try {
     const { invoiceId, transactionId } = req.body;
     console.log(`💳 Processing payment completion for invoice ${invoiceId}`);
-    
+
     // Here you would normally update the database
     // For now, we'll return success to update the frontend
-    
+
     const updatedInvoice = {
       id: invoiceId,
       status: 'Paid',
       paymentDate: new Date().toISOString(),
       transactionId: transactionId || `TXN${Date.now()}`
     };
-    
+
     console.log('✅ Payment completed successfully:', updatedInvoice);
-    
+
     res.json({
       success: true,
       message: 'Payment completed successfully',
       invoice: updatedInvoice
     });
-    
+
   } catch (error) {
     console.error('❌ Payment completion error:', error);
     res.status(500).json({
@@ -299,6 +374,12 @@ process.on('SIGTERM', () => {
   console.log('SIGTERM received. Shutting down gracefully...');
   usageAnalyticsService.stop();
   console.log('Usage Analytics Service stopped.');
+  churnMonitoringService.stop();
+  console.log('Churn Monitoring Service stopped.');
+  reminderSchedulerService.stop();
+  console.log('Reminder Scheduler Service stopped.');
+  usageSimulatorService.stop();
+  console.log('Usage Simulator Service stopped.');
   mongoose.connection.close();
   console.log('MongoDB connection closed.');
   process.exit(0);
@@ -308,6 +389,12 @@ process.on('SIGINT', () => {
   console.log('SIGINT received. Shutting down gracefully...');
   usageAnalyticsService.stop();
   console.log('Usage Analytics Service stopped.');
+  churnMonitoringService.stop();
+  console.log('Churn Monitoring Service stopped.');
+  reminderSchedulerService.stop();
+  console.log('Reminder Scheduler Service stopped.');
+  usageSimulatorService.stop();
+  console.log('Usage Simulator Service stopped.');
   mongoose.connection.close();
   console.log('MongoDB connection closed.');
   process.exit(0);
