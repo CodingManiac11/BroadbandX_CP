@@ -22,7 +22,7 @@ BroadbandX is a full-stack subscription management platform with integrated mach
 - 🚀 **Performance Optimized:** 60% faster load times with code splitting
 - 📧 **Automated Alerts:** Instant email notifications for high-risk customers
 - 📅 **Scheduled Reports:** Weekly & Monthly PDF analytics reports
-- 🛡️ **Retention Toolkit:** Integrated actions for calls, discounts, and upgrades
+
 
 ---
 
@@ -214,8 +214,7 @@ python -m training.train_all
 ## Documentation
 
 - [ML Service README](ml/README.md) - ML pipeline documentation
-- [Project Report](docs/PROJECT_REPORT.md) - Complete project documentation
-- [Research Paper](docs/research_paper_ieee.md) - IEEE format research paper
+
 
 ---
 

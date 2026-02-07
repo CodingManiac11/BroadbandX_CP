@@ -69,8 +69,20 @@ const limiter = rateLimit({
     error: 'Too many requests from this IP, please try again later.',
   },
 });
-// Temporarily disable rate limiting for debugging
-// app.use('/api/', limiter);
+
+// Stricter rate limiting for authentication endpoints (anti-brute force)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'development' ? 100 : 5, // 5 login attempts per 15 min in production
+  message: {
+    error: 'Too many login attempts. Please try again after 15 minutes.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply general rate limiting
+app.use('/api/', limiter);
 
 // CORS configuration - More permissive for development
 const corsOptions = {
