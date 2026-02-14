@@ -3,9 +3,14 @@ const { generateToken, generateRefreshToken, verifyRefreshToken } = require('../
 const { asyncHandler } = require('../middleware/errorHandler');
 const { dbOperation } = require('../middleware/dbHealthCheck');
 const emailService = require('../services/emailService');
+const { logSecurityEvent } = require('../middleware/securityLogger');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
+
+// Password strength regex (same as Joi validator for double-check)
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+const passwordErrorMsg = 'Password must be at least 8 characters and contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)';
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -20,6 +25,14 @@ const register = asyncHandler(async (req, res) => {
     address,
     role = 'customer'
   } = req.body;
+
+  // Validate password strength
+  if (!passwordRegex.test(password)) {
+    return res.status(400).json({
+      status: 'error',
+      message: passwordErrorMsg
+    });
+  }
 
   // Check if user exists
   const existingUser = await User.findByEmail(email);
@@ -49,8 +62,20 @@ const register = asyncHandler(async (req, res) => {
   // Remove password from response
   user.password = undefined;
 
+  // Log registration event
+  logSecurityEvent({
+    action: 'create',
+    entityId: user._id,
+    userId: user._id,
+    userEmail: user.email,
+    userRole: user.role,
+    req,
+    success: true,
+    details: { event: 'user_registration' }
+  });
+
   // Note: Welcome email will be sent after user purchases a subscription
-  
+
   res.status(201).json({
     status: 'success',
     message: 'User registered successfully',
@@ -87,11 +112,23 @@ const login = asyncHandler(async (req, res) => {
   try {
     // Get user with password using timeout wrapper
     const user = await dbOperation(
-      () => User.findByEmail(email).select('+password'),
+      () => User.findByEmail(email).select('+password +loginAttempts +lockUntil'),
       null
     );
 
     if (!user) {
+      // Log failed login - unknown email
+      logSecurityEvent({
+        action: 'login',
+        entityId: new mongoose.Types.ObjectId(),
+        userId: new mongoose.Types.ObjectId(),
+        userEmail: email,
+        userRole: 'customer',
+        req,
+        success: false,
+        errorMessage: 'Invalid credentials - email not found',
+        details: { event: 'login_failed', reason: 'unknown_email' }
+      });
       return res.status(401).json({
         status: 'error',
         message: 'Invalid credentials'
@@ -100,6 +137,18 @@ const login = asyncHandler(async (req, res) => {
 
     // Check if account is locked
     if (user.isLocked) {
+      // Log failed login - account locked
+      logSecurityEvent({
+        action: 'login',
+        entityId: user._id,
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
+        req,
+        success: false,
+        errorMessage: 'Account locked',
+        details: { event: 'login_failed', reason: 'account_locked' }
+      });
       return res.status(423).json({
         status: 'error',
         message: 'Account temporarily locked due to too many failed login attempts'
@@ -109,6 +158,18 @@ const login = asyncHandler(async (req, res) => {
     // Check role if specified (for separate login portals)
     if (role && user.role !== role) {
       await user.incLoginAttempts();
+      // Log failed login - wrong role
+      logSecurityEvent({
+        action: 'login',
+        entityId: user._id,
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
+        req,
+        success: false,
+        errorMessage: `Invalid credentials for ${role} portal`,
+        details: { event: 'login_failed', reason: 'wrong_role', attemptedRole: role }
+      });
       return res.status(401).json({
         status: 'error',
         message: `Invalid credentials for ${role} portal`
@@ -120,6 +181,37 @@ const login = asyncHandler(async (req, res) => {
 
     if (!isPasswordValid) {
       await user.incLoginAttempts();
+
+      // Check if this attempt causes a lockout (5th failed attempt)
+      if (user.loginAttempts + 1 >= 5) {
+        // Send lockout email notification
+        try {
+          await emailService.sendAccountLockoutEmail(user.email, {
+            name: `${user.firstName} ${user.lastName}`,
+            attempts: user.loginAttempts + 1,
+            ipAddress: req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.ip || 'Unknown',
+            time: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+            lockDuration: '2 hours'
+          });
+          console.log(`🔒 Lockout email sent to ${user.email}`);
+        } catch (emailErr) {
+          console.error('⚠️  Failed to send lockout email:', emailErr.message);
+        }
+      }
+
+      // Log failed login - wrong password
+      logSecurityEvent({
+        action: 'login',
+        entityId: user._id,
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
+        req,
+        success: false,
+        errorMessage: 'Invalid password',
+        details: { event: 'login_failed', reason: 'wrong_password', loginAttempts: user.loginAttempts + 1 }
+      });
+
       return res.status(401).json({
         status: 'error',
         message: 'Invalid credentials'
@@ -128,6 +220,18 @@ const login = asyncHandler(async (req, res) => {
 
     // Check if user is active
     if (user.status !== 'active') {
+      // Log failed login - inactive account
+      logSecurityEvent({
+        action: 'login',
+        entityId: user._id,
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
+        req,
+        success: false,
+        errorMessage: 'Account not active',
+        details: { event: 'login_failed', reason: 'inactive_account', status: user.status }
+      });
       return res.status(401).json({
         status: 'error',
         message: 'Account is not active. Please contact support.'
@@ -145,6 +249,18 @@ const login = asyncHandler(async (req, res) => {
 
     // Remove password from response
     user.password = undefined;
+
+    // Log successful login
+    logSecurityEvent({
+      action: 'login',
+      entityId: user._id,
+      userId: user._id,
+      userEmail: user.email,
+      userRole: user.role,
+      req,
+      success: true,
+      details: { event: 'login_success' }
+    });
 
     res.status(200).json({
       status: 'success',
@@ -180,7 +296,7 @@ const refreshToken = asyncHandler(async (req, res) => {
 
   try {
     const decoded = verifyRefreshToken(token);
-    
+
     // Get user
     const user = await User.findById(decoded.id);
     if (!user || user.status !== 'active') {
@@ -252,14 +368,14 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
     // Send password reset email
     const resetURL = `${process.env.CLIENT_URL || 'http://localhost:3000'}/reset-password/${resetToken}`;
-    
+
     try {
       await emailService.sendPasswordResetEmail(user.email, {
         name: `${user.firstName} ${user.lastName}`,
         resetURL,
         expiresIn: '10 minutes'
       });
-      
+
       res.status(200).json({
         status: 'success',
         message: 'Password reset link sent to your email'
@@ -269,7 +385,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
       user.passwordResetToken = undefined;
       user.passwordResetExpires = undefined;
       await user.save({ validateBeforeSave: false });
-      
+
       return res.status(500).json({
         status: 'error',
         message: 'Email service is currently unavailable. Please try again later or contact support.',
@@ -307,11 +423,31 @@ const resetPassword = asyncHandler(async (req, res) => {
     });
   }
 
+  // Validate password strength before setting
+  if (!passwordRegex.test(password)) {
+    return res.status(400).json({
+      status: 'error',
+      message: passwordErrorMsg
+    });
+  }
+
   // Set new password
   user.password = password;
   user.passwordResetToken = undefined;
   user.passwordResetExpires = undefined;
   await user.save();
+
+  // Log password reset event
+  logSecurityEvent({
+    action: 'update',
+    entityId: user._id,
+    userId: user._id,
+    userEmail: user.email,
+    userRole: user.role,
+    req,
+    success: true,
+    details: { event: 'password_reset' }
+  });
 
   res.status(200).json({
     status: 'success',
@@ -394,11 +530,31 @@ const updateProfile = asyncHandler(async (req, res) => {
 const changePassword = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body;
 
+  // Validate new password strength
+  if (!passwordRegex.test(newPassword)) {
+    return res.status(400).json({
+      status: 'error',
+      message: passwordErrorMsg
+    });
+  }
+
   const user = await User.findById(req.user._id).select('+password');
 
   // Check current password
   const isCurrentPasswordValid = await user.comparePassword(currentPassword);
   if (!isCurrentPasswordValid) {
+    // Log failed password change
+    logSecurityEvent({
+      action: 'update',
+      entityId: user._id,
+      userId: user._id,
+      userEmail: user.email,
+      userRole: user.role,
+      req,
+      success: false,
+      errorMessage: 'Current password incorrect',
+      details: { event: 'password_change_failed' }
+    });
     return res.status(400).json({
       status: 'error',
       message: 'Current password is incorrect'
@@ -407,11 +563,76 @@ const changePassword = asyncHandler(async (req, res) => {
 
   // Update password
   user.password = newPassword;
+  // Increment tokenVersion to invalidate all existing tokens
+  user.tokenVersion = (user.tokenVersion || 0) + 1;
   await user.save();
+
+  // Log successful password change
+  logSecurityEvent({
+    action: 'update',
+    entityId: user._id,
+    userId: user._id,
+    userEmail: user.email,
+    userRole: user.role,
+    req,
+    success: true,
+    details: { event: 'password_changed', tokenVersionIncremented: true }
+  });
+
+  // Generate new token with updated version
+  const token = generateToken(user);
+  const refreshToken = generateRefreshToken(user);
 
   res.status(200).json({
     status: 'success',
-    message: 'Password changed successfully'
+    message: 'Password changed successfully. All other sessions have been logged out.',
+    data: {
+      token,
+      refreshToken
+    }
+  });
+});
+
+// @desc    Logout from all devices (invalidate all tokens)
+// @route   POST /api/auth/logout-all
+// @access  Private
+const logoutAll = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+
+  if (!user) {
+    return res.status(404).json({
+      status: 'error',
+      message: 'User not found'
+    });
+  }
+
+  // Increment tokenVersion to invalidate all existing tokens
+  user.tokenVersion = (user.tokenVersion || 0) + 1;
+  await user.save();
+
+  // Log logout-all event
+  logSecurityEvent({
+    action: 'logout',
+    entityId: user._id,
+    userId: user._id,
+    userEmail: user.email,
+    userRole: user.role,
+    req,
+    success: true,
+    details: { event: 'logout_all_devices', newTokenVersion: user.tokenVersion }
+  });
+
+  // Generate new token for current session
+  const token = generateToken(user);
+  const refreshToken = generateRefreshToken(user);
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Successfully logged out from all devices. You have been issued a new session.',
+    data: {
+      token,
+      refreshToken
+    }
   });
 });
 
@@ -425,5 +646,6 @@ module.exports = {
   verifyEmail,
   getCurrentUser,
   updateProfile,
-  changePassword
+  changePassword,
+  logoutAll
 };

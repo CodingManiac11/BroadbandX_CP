@@ -68,6 +68,10 @@ const userSchema = new mongoose.Schema({
     default: 0
   },
   lockUntil: Date,
+  tokenVersion: {
+    type: Number,
+    default: 0
+  },
   preferences: {
     notifications: {
       email: { type: Boolean, default: true },

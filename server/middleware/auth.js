@@ -20,7 +20,7 @@ const authenticateToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     console.log('✅ Token decoded, User ID:', decoded.id);
     console.log('✅ Token decoded, User ID:', decoded.id);
-    
+
     // Get user from database with error handling
     let user;
     try {
@@ -33,7 +33,7 @@ const authenticateToken = async (req, res, next) => {
         message: 'Database connection error. Please try again.'
       });
     }
-    
+
     if (!user) {
       console.log('❌ User not found in database');
       return res.status(401).json({
@@ -50,6 +50,17 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
+    // Check tokenVersion for session invalidation
+    if (decoded.tokenVersion !== undefined && user.tokenVersion !== undefined) {
+      if (decoded.tokenVersion !== user.tokenVersion) {
+        console.log('❌ Token version mismatch - session invalidated');
+        return res.status(401).json({
+          status: 'error',
+          message: 'Session expired. Please log in again.'
+        });
+      }
+    }
+
     console.log('✅ Authentication successful, User:', user.email, 'Role:', user.role);
     req.user = user;
     next();
@@ -61,7 +72,7 @@ const authenticateToken = async (req, res, next) => {
         message: 'Invalid token'
       });
     }
-    
+
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({
         status: 'error',
@@ -126,7 +137,7 @@ const ownerOrAdmin = (resourceUserIdField = 'user') => {
 
       // For customers, check if they own the resource
       const resourceUserId = req.params.userId || req.body[resourceUserIdField] || req.query.userId;
-      
+
       if (req.user._id.toString() !== resourceUserId) {
         return res.status(403).json({
           status: 'error',
@@ -186,7 +197,8 @@ const generateToken = (user) => {
   const payload = {
     id: user._id,
     email: user.email,
-    role: user.role
+    role: user.role,
+    tokenVersion: user.tokenVersion || 0
   };
 
   return jwt.sign(payload, process.env.JWT_SECRET, {
@@ -229,12 +241,12 @@ const optionalAuth = async (req, res, next) => {
     if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const user = await User.findById(decoded.id).select('-password');
-      
+
       if (user && user.status === 'active') {
         req.user = user;
       }
     }
-    
+
     next();
   } catch (error) {
     // Continue without authentication

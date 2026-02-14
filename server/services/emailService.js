@@ -143,6 +143,46 @@ const EMAIL_TEMPLATES = {
       </p>
     `,
   },
+  ACCOUNT_LOCKOUT: {
+    subject: '🔒 Account Security Alert - BroadbandX',
+    template: (data) => `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 20px; border-radius: 10px 10px 0 0;">
+          <h2 style="margin: 0;">🔒 Account Locked</h2>
+          <p style="margin: 5px 0 0 0; opacity: 0.9;">Suspicious login activity detected</p>
+        </div>
+        <div style="background: #fff; padding: 20px; border: 1px solid #e5e7eb;">
+          <p>Dear ${data.name},</p>
+          <p>Your BroadbandX account has been <strong style="color: #dc2626;">temporarily locked</strong> due to <strong>${data.attempts} consecutive failed login attempts</strong>.</p>
+          
+          <div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0;">
+            <h3 style="margin: 0 0 10px 0; color: #991b1b;">Details</h3>
+            <p style="margin: 5px 0;"><strong>IP Address:</strong> ${data.ipAddress || 'Unknown'}</p>
+            <p style="margin: 5px 0;"><strong>Time:</strong> ${data.time}</p>
+            <p style="margin: 5px 0;"><strong>Lock Duration:</strong> ${data.lockDuration || '2 hours'}</p>
+          </div>
+          
+          <p>Your account will be automatically unlocked after ${data.lockDuration || '2 hours'}. If this wasn't you, we strongly recommend:</p>
+          <ul>
+            <li>Changing your password immediately after unlock</li>
+            <li>Enabling two-factor authentication</li>
+            <li>Checking for unauthorized activity on your account</li>
+          </ul>
+          
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${process.env.CLIENT_URL || 'http://localhost:3000'}/forgot-password" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+              Reset Your Password
+            </a>
+          </div>
+          
+          <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">If you did not attempt to log in, someone may be trying to access your account. Please reset your password as a precaution.</p>
+        </div>
+        <div style="background: #f9fafb; padding: 15px; text-align: center; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="margin: 0; color: #6b7280; font-size: 12px;">BroadbandX Security Team | Automated Security Alert</p>
+        </div>
+      </div>
+    `,
+  },
   HIGH_RISK_ALERT: {
     subject: (count) => `⚠️ ALERT: ${count} High-Risk Customer${count > 1 ? 's' : ''} Detected - BroadbandX`,
     template: (data) => `
@@ -320,6 +360,10 @@ const sendPasswordResetEmail = async (to, data) => {
   return sendTemplatedEmail(to, 'PASSWORD_RESET', data);
 };
 
+const sendAccountLockoutEmail = async (to, data) => {
+  return sendTemplatedEmail(to, 'ACCOUNT_LOCKOUT', data);
+};
+
 /**
  * Send high-risk customer alert to admin
  * @param {string} to - Admin email address
@@ -389,6 +433,7 @@ module.exports = {
   sendFeedbackRequest,
   sendFeedbackResponse,
   sendPasswordResetEmail,
+  sendAccountLockoutEmail,
   sendHighRiskAlert,
   sendScheduledReport
 };
