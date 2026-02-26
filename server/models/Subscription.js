@@ -13,7 +13,7 @@ const subscriptionSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['active', 'suspended', 'cancelled', 'expired'],
+    enum: ['active', 'grace_period', 'suspended', 'cancelled', 'expired'],
     default: 'active'
   },
   paymentFailures: {
@@ -28,6 +28,10 @@ const subscriptionSchema = new mongoose.Schema({
   endDate: {
     type: Date,
     required: [true, 'End date is required']
+  },
+  gracePeriodEnd: {
+    type: Date,
+    default: null
   },
   billingCycle: {
     type: String,
@@ -254,7 +258,7 @@ subscriptionSchema.pre('save', function (next) {
   if (this.autoRenewal.enabled && this.billingCycle && this.startDate) {
     const nextRenewal = new Date(this.startDate);
     if (this.billingCycle === 'monthly') {
-      nextRenewal.setMonth(nextRenewal.getMonth() + 1);
+      nextRenewal.setDate(nextRenewal.getDate() + 30);
     } else if (this.billingCycle === 'yearly') {
       nextRenewal.setFullYear(nextRenewal.getFullYear() + 1);
     }
@@ -304,7 +308,7 @@ subscriptionSchema.methods.getNextBillDate = function () {
 
   const nextBill = new Date(this.startDate);
   if (this.billingCycle === 'monthly') {
-    nextBill.setMonth(nextBill.getMonth() + 1);
+    nextBill.setDate(nextBill.getDate() + 30);
   } else {
     nextBill.setFullYear(nextBill.getFullYear() + 1);
   }

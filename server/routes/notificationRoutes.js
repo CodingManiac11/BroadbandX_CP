@@ -41,7 +41,7 @@ router.get('/reminders', authMiddleware, async (req, res) => {
         nextBillingDate = new Date(subscription.endDate);
       } else if (subscription.startDate) {
         nextBillingDate = new Date(subscription.startDate);
-        nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
+        nextBillingDate.setDate(nextBillingDate.getDate() + 30);
       } else {
         continue; // Skip if no date info
       }
@@ -57,6 +57,63 @@ router.get('/reminders', authMiddleware, async (req, res) => {
         status: { $in: ['created', 'pending'] }
       });
 
+      // Subscription expiry notifications at different thresholds
+      const expiryDate = subscription.endDate ? new Date(subscription.endDate) : null;
+      if (expiryDate) {
+        const daysUntilExpiry = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+
+        if (daysUntilExpiry <= 0) {
+          reminders.push({
+            _id: `expired_${subscription._id}`,
+            type: 'expired',
+            title: '⚠️ Subscription Expired',
+            message: `Your ${planName} subscription has expired ${Math.abs(daysUntilExpiry)} day(s) ago. Renew now to restore service.`,
+            dueDate: expiryDate,
+            amount: amount,
+            priority: 'urgent',
+            read: false,
+            createdAt: today
+          });
+        } else if (daysUntilExpiry <= 1) {
+          reminders.push({
+            _id: `expiry_1d_${subscription._id}`,
+            type: 'expiring_tomorrow',
+            title: '🔴 Expiring Tomorrow!',
+            message: `Your ${planName} subscription expires tomorrow! Renew now to avoid service interruption.`,
+            dueDate: expiryDate,
+            amount: amount,
+            priority: 'urgent',
+            read: false,
+            createdAt: today
+          });
+        } else if (daysUntilExpiry <= 3) {
+          reminders.push({
+            _id: `expiry_3d_${subscription._id}`,
+            type: 'expiring_soon',
+            title: '🔴 Subscription Expiring in ' + daysUntilExpiry + ' Days',
+            message: `Your ${planName} plan expires in ${daysUntilExpiry} days. Renew at ₹${amount} to continue.`,
+            dueDate: expiryDate,
+            amount: amount,
+            priority: 'high',
+            read: false,
+            createdAt: today
+          });
+        } else if (daysUntilExpiry <= 7) {
+          reminders.push({
+            _id: `expiry_7d_${subscription._id}`,
+            type: 'expiring_week',
+            title: '🟡 Subscription Expiring This Week',
+            message: `Your ${planName} plan expires in ${daysUntilExpiry} days (${expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}). Renew to avoid interruption.`,
+            dueDate: expiryDate,
+            amount: amount,
+            priority: 'high',
+            read: false,
+            createdAt: today
+          });
+        }
+      }
+
+      // Payment due notifications
       if (daysUntilDue <= 7 && daysUntilDue > 0) {
         reminders.push({
           _id: `reminder_${subscription._id}`,

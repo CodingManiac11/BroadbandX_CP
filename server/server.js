@@ -42,6 +42,7 @@ const churnMonitoringService = require('./services/ChurnMonitoringService');
 const reminderSchedulerService = require('./services/ReminderSchedulerService');
 const usageSimulatorService = require('./services/UsageSimulatorService');
 const scheduledReportService = require('./services/scheduledReportService');
+const subscriptionExpiryService = require('./services/SubscriptionExpiryService');
 
 const app = express();
 const server = createServer(app);
@@ -248,14 +249,57 @@ io.on('connection', (socket) => {
     console.log(`👋 User left admin room: ${socket.id}`);
   });
 
-  // Handle disconnection
-  socket.on('disconnect', () => {
-    console.log('👤 User disconnected:', socket.id);
-  });
-
   // Handle subscription events
   socket.on('subscribe_to_updates', (data) => {
     console.log('📡 User subscribed to updates:', data);
+  });
+
+  // Real-time usage simulation for live counter
+  socket.on('start_usage_tracking', () => {
+    if (socket._usageInterval) clearInterval(socket._usageInterval);
+
+    // Simulated session usage state
+    let sessionDownload = 0;
+    let sessionUpload = 0;
+
+    socket._usageInterval = setInterval(() => {
+      // Simulate realistic usage increments (bytes)
+      const downloadIncrement = Math.floor(Math.random() * 500000) + 100000; // 100KB - 600KB per tick
+      const uploadIncrement = Math.floor(Math.random() * 150000) + 30000;    // 30KB - 180KB per tick
+      const currentSpeed = (Math.random() * 80 + 20).toFixed(1); // 20-100 Mbps
+      const uploadSpeed = (Math.random() * 30 + 5).toFixed(1);   // 5-35 Mbps
+
+      sessionDownload += downloadIncrement;
+      sessionUpload += uploadIncrement;
+
+      socket.emit('usage_tick', {
+        downloadIncrement,
+        uploadIncrement,
+        currentDownloadSpeed: parseFloat(currentSpeed),
+        currentUploadSpeed: parseFloat(uploadSpeed),
+        sessionDownload,
+        sessionUpload,
+        sessionTotal: sessionDownload + sessionUpload,
+        timestamp: Date.now(),
+        status: parseFloat(currentSpeed) > 50 ? 'excellent' : parseFloat(currentSpeed) > 25 ? 'good' : 'fair'
+      });
+    }, 3000); // Every 3 seconds
+
+    console.log(`📊 Started usage tracking for socket: ${socket.id}`);
+  });
+
+  socket.on('stop_usage_tracking', () => {
+    if (socket._usageInterval) {
+      clearInterval(socket._usageInterval);
+      socket._usageInterval = null;
+      console.log(`📊 Stopped usage tracking for socket: ${socket.id}`);
+    }
+  });
+
+  // Clean up usage tracking on disconnect
+  socket.on('disconnect', () => {
+    if (socket._usageInterval) clearInterval(socket._usageInterval);
+    console.log('👤 User disconnected:', socket.id);
   });
 });
 
@@ -294,6 +338,7 @@ app.use('/api/recommendations', authenticateToken, recommendationRoutes);
 app.use('/api/admin/pricing', authenticateToken, pricingRoutes);
 app.use('/api/admin/ai-pricing', authenticateToken, aiPricingRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/chatbot', authenticateToken, require('./routes/chatbot'));
 
 // Churn Monitoring API endpoint
 app.get('/api/admin/churn-alerts', authenticateToken, async (req, res) => {
@@ -401,6 +446,8 @@ process.on('SIGTERM', () => {
   console.log('Reminder Scheduler Service stopped.');
   usageSimulatorService.stop();
   console.log('Usage Simulator Service stopped.');
+  subscriptionExpiryService.stop();
+  console.log('Subscription Expiry Service stopped.');
   mongoose.connection.close();
   console.log('MongoDB connection closed.');
   process.exit(0);
@@ -416,6 +463,8 @@ process.on('SIGINT', () => {
   console.log('Reminder Scheduler Service stopped.');
   usageSimulatorService.stop();
   console.log('Usage Simulator Service stopped.');
+  subscriptionExpiryService.stop();
+  console.log('Subscription Expiry Service stopped.');
   mongoose.connection.close();
   console.log('MongoDB connection closed.');
   process.exit(0);

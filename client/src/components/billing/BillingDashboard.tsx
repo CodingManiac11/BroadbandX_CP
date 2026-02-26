@@ -42,7 +42,7 @@ import { useRealtime } from '../../contexts/RealtimeContext';
 const QRPaymentModal = ({ open, onClose, invoice, onPaymentSuccess }: any) => {
   const [loading, setLoading] = useState(false);
   const [transactionId] = useState(`TXN${Date.now()}`);
-  
+
   const upiDetails = {
     id: '9570329856@ptyes',
     name: 'BroadbandX Services',
@@ -64,7 +64,7 @@ const QRPaymentModal = ({ open, onClose, invoice, onPaymentSuccess }: any) => {
     setLoading(true);
     try {
       console.log(`💳 Processing payment for invoice ${invoice.id}`);
-      
+
       // Call server to complete payment in database
       const response = await axios.post('http://localhost:5001/api/billing/complete-payment', {
         invoiceId: invoice.id,
@@ -82,26 +82,26 @@ const QRPaymentModal = ({ open, onClose, invoice, onPaymentSuccess }: any) => {
           paymentDate: new Date().toISOString(),
           transactionId: response.data.payment?.transactionId || transactionId
         };
-        
+
         console.log('✅ Payment completed successfully, updated invoice:', updatedInvoice);
         console.log('🔍 Before payment - Invoice status:', invoice.status);
         console.log('🔍 After payment - Invoice status:', updatedInvoice.status);
-        
+
         // Close modal first
         onClose();
-        
+
         // Immediately notify parent with updated invoice
         setTimeout(() => {
           console.log('📤 Sending payment success to parent component');
           onPaymentSuccess?.(updatedInvoice);
         }, 100);
-        
+
         // Force reload billing data from server to get updated status
         setTimeout(() => {
           console.log('🔄 Forcing billing data reload after payment');
           window.location.reload(); // Force complete page refresh to ensure updated data
         }, 500);
-        
+
         alert(`✅ Payment of ₹${invoice.amount} completed successfully!`);
       } else {
         throw new Error(response.data.message || 'Payment completion failed');
@@ -122,7 +122,7 @@ const QRPaymentModal = ({ open, onClose, invoice, onPaymentSuccess }: any) => {
           <Typography variant="h6">UPI Payment</Typography>
         </Stack>
       </DialogTitle>
-      
+
       <DialogContent>
         <Card sx={{ mb: 2, bgcolor: 'primary.50' }}>
           <CardContent>
@@ -136,7 +136,7 @@ const QRPaymentModal = ({ open, onClose, invoice, onPaymentSuccess }: any) => {
         </Card>
 
         <Box sx={{ textAlign: 'center', mb: 3 }}>
-          <Box sx={{ 
+          <Box sx={{
             p: 3,
             border: '2px dashed',
             borderColor: 'primary.main',
@@ -160,17 +160,17 @@ const QRPaymentModal = ({ open, onClose, invoice, onPaymentSuccess }: any) => {
 
         <Divider sx={{ my: 2 }} />
 
-        <Box sx={{ 
-          p: 2, 
-          backgroundColor: 'grey.100', 
-          borderRadius: 1 
+        <Box sx={{
+          p: 2,
+          backgroundColor: 'grey.100',
+          borderRadius: 1
         }}>
           <Typography variant="body2" color="text.secondary" gutterBottom>
             UPI ID:
           </Typography>
           <Stack direction="row" alignItems="center" spacing={1}>
-            <Typography 
-              variant="body1" 
+            <Typography
+              variant="body1"
               sx={{ fontFamily: 'monospace', fontWeight: 'bold', flex: 1 }}
             >
               {upiDetails.id}
@@ -211,7 +211,7 @@ const QRPaymentModal = ({ open, onClose, invoice, onPaymentSuccess }: any) => {
         <Button onClick={onClose} disabled={loading}>
           Cancel
         </Button>
-        <Button 
+        <Button
           onClick={handlePaymentComplete}
           variant="contained"
           disabled={loading}
@@ -227,7 +227,7 @@ const QRPaymentModal = ({ open, onClose, invoice, onPaymentSuccess }: any) => {
 // Simple placeholder for InvoicePaymentButton
 const InvoicePaymentButton = ({ invoice, onPaymentSuccess, onPaymentError, paidInvoices }: any) => {
   const [showQRPayment, setShowQRPayment] = useState(false);
-  
+
   console.log(`🔍 Rendering InvoicePaymentButton for invoice ${invoice.id} with status: ${invoice.status}`);
   console.log(`💰 PaidInvoices set contains ${invoice.id}:`, paidInvoices?.has(invoice.id));
 
@@ -236,22 +236,22 @@ const InvoicePaymentButton = ({ invoice, onPaymentSuccess, onPaymentError, paidI
       console.log('📄 Attempting to download PDF for invoice:', invoice);
       console.log('📄 Invoice._id:', invoice._id);
       console.log('📄 Invoice.id:', invoice.id);
-      
+
       // Check if invoice is paid before attempting download
       if (invoice.status?.toLowerCase() !== 'paid') {
         alert('⚠️ PDF invoice is only available after payment completion. Please complete the payment first.');
         return;
       }
-      
+
       // Use _id (MongoDB ObjectId) directly
       const pdfInvoiceId = invoice._id || invoice.id;
       console.log('📄 Using PDF invoice ID:', pdfInvoiceId, 'for invoice:', invoice.invoiceNumber);
-      
+
       // Open PDF in new window for paid invoices only (no userId needed)
       const pdfUrl = `http://localhost:5001/api/pdf/invoice/${pdfInvoiceId}`;
       console.log('📄 Opening PDF URL:', pdfUrl);
       window.open(pdfUrl, '_blank');
-      
+
     } catch (error) {
       console.error('Failed to download PDF:', error);
       alert('Error downloading PDF. Please try again.');
@@ -260,7 +260,7 @@ const InvoicePaymentButton = ({ invoice, onPaymentSuccess, onPaymentError, paidI
 
   const handlePaymentComplete = (updatedInvoice: any) => {
     console.log('💳 Payment completed in button, updated invoice:', updatedInvoice);
-    
+
     // Create new invoice with updated status
     const newInvoice = {
       ...updatedInvoice,
@@ -268,14 +268,14 @@ const InvoicePaymentButton = ({ invoice, onPaymentSuccess, onPaymentError, paidI
       paymentDate: new Date().toISOString(),
       transactionId: `TXN${Date.now()}`
     };
-    
+
     // Call parent success handler with updated invoice
     onPaymentSuccess?.(newInvoice);
   };
 
   // Check if invoice is paid (case insensitive) - check both status and paidInvoices set
   const isPaid = invoice.status?.toLowerCase() === 'paid' || paidInvoices?.has(invoice.id);
-  
+
   console.log(`🎯 Invoice ${invoice.id} isPaid: ${isPaid}, status: ${invoice.status}, inPaidSet: ${paidInvoices?.has(invoice.id)}`);
 
   if (isPaid) {
@@ -289,9 +289,9 @@ const InvoicePaymentButton = ({ invoice, onPaymentSuccess, onPaymentError, paidI
         >
           Download PDF
         </Button>
-        <Chip 
-          label="Paid" 
-          color="success" 
+        <Chip
+          label="Paid"
+          color="success"
           size="small"
           icon={<CheckCircleIcon />}
         />
@@ -302,9 +302,9 @@ const InvoicePaymentButton = ({ invoice, onPaymentSuccess, onPaymentError, paidI
   return (
     <>
       <Stack direction="row" spacing={1}>
-        <Button 
-          size="small" 
-          variant="contained" 
+        <Button
+          size="small"
+          variant="contained"
           color="primary"
           onClick={() => setShowQRPayment(true)}
           startIcon={<QrCodeIcon />}
@@ -320,7 +320,7 @@ const InvoicePaymentButton = ({ invoice, onPaymentSuccess, onPaymentError, paidI
           Download PDF
         </Button>
       </Stack>
-      
+
       <QRPaymentModal
         open={showQRPayment}
         onClose={() => setShowQRPayment(false)}
@@ -343,25 +343,25 @@ interface BillingData {
 
 const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess }) => {
   console.log('🚀 SIMPLIFIED BILLING DASHBOARD LOADED - WITH REAL-TIME UPDATES');
-  
+
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<BillingData | null>(null);
   const [error, setError] = useState<string>('');
   const [localRefreshTrigger, setLocalRefreshTrigger] = useState(0); // Local refresh trigger
   const [paidInvoices, setPaidInvoices] = useState<Set<string>>(new Set()); // Track paid invoices
-  
+
   // Use RealtimeContext for consistent real-time updates
   const { refreshTrigger } = useRealtime();
 
   // Manual refresh function
   const refreshBillingData = async () => {
     console.log('🔄 Manual refresh triggered - clearing cache and fetching latest data');
-    
+
     // Clear any cached data
     setData(null);
     setPaidInvoices(new Set());
     setLoading(true);
-    
+
     // Force fresh data load with cache-busting
     await loadBillingData(true);
     setLocalRefreshTrigger(Date.now());
@@ -386,7 +386,7 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
     try {
       setLoading(true);
       console.log('🌐 Making API call to fetch subscription data', forceFresh ? '(FORCE FRESH)' : '');
-      
+
       const userId = localStorage.getItem('userId');
       const token = localStorage.getItem('access_token'); // Use correct token key
 
@@ -398,7 +398,7 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
 
       console.log('👤 User ID:', userId);
       console.log('🔑 Token found:', token ? 'YES' : 'NO');
-      
+
       // Force cache bust to ensure fresh data
       const headers = {
         'Authorization': `Bearer ${token}`,
@@ -413,7 +413,7 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
       const response = await axios.get(
         `http://localhost:5001/api/customer/subscriptions?userId=${userId}${cacheBuster}`,
         {
-          headers: { 
+          headers: {
             Authorization: `Bearer ${token}`
           },
           timeout: 15000 // 15 second timeout
@@ -453,40 +453,40 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
 
       if (subscriptionsArray.length > 0) {
         console.log('📊 Using REAL subscription data from API');
-        
+
         let subscriptionData = subscriptionsArray[0]; // Get first item from array
         console.log('🔍 Raw subscription data structure:', subscriptionData);
         console.log('🔍 Subscription keys:', Object.keys(subscriptionData || {}));
-        
+
         // Handle nested subscription structure
         if (subscriptionData?.subscriptions && Array.isArray(subscriptionData.subscriptions)) {
           console.log('🔍 Found nested subscriptions array, extracting first subscription');
           subscriptionData = subscriptionData.subscriptions[0];
           console.log('🔍 Extracted subscription data:', subscriptionData);
         }
-        
+
         // Validate that this subscription belongs to the current user
         const currentUserId = localStorage.getItem('userId');
         const subscriptionUserId = subscriptionData?.user?.toString() || subscriptionData?.userId?.toString();
-        
+
         console.log('🔐 User validation check:', {
           currentUserId,
           subscriptionUserId,
           match: currentUserId === subscriptionUserId
         });
-        
+
         if (currentUserId !== subscriptionUserId) {
           console.error('❌ SECURITY ALERT: Subscription data belongs to different user!');
           console.error('  Current user:', currentUserId);
           console.error('  Subscription user:', subscriptionUserId);
           throw new Error('Data integrity error: Received subscription for different user');
         }
-        
+
         // Fetch REAL invoices from Billing collection instead of paymentHistory
         console.log('📄 Fetching real invoices from Billing API for user:', userId);
-        
+
         let processedInvoices = [];
-        
+
         try {
           console.log('🔍 Fetching invoices with userId:', userId);
           const invoicesResponse = await axios.get(
@@ -496,17 +496,17 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
               timeout: 10000
             }
           );
-          
+
           console.log('✅ Billing API response:', invoicesResponse.data);
           console.log('📊 Invoice count:', invoicesResponse.data?.data?.length || 0);
-          
+
           if (invoicesResponse.data?.success && invoicesResponse.data?.data) {
             processedInvoices = invoicesResponse.data.data.map((invoice: any) => {
               const invoiceId = invoice._id;
               const isInPaidSet = paidInvoices.has(invoiceId);
               const apiStatus = invoice.status?.toLowerCase();
               const isPaidStatus = apiStatus === 'paid';
-              
+
               console.log(`📋 Processing invoice:`, {
                 invoiceId,
                 invoiceNumber: invoice.invoiceNumber,
@@ -515,10 +515,10 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
                 isInPaidSet,
                 amount: invoice.total
               });
-              
+
               // Priority: Local paid state > API paid status > Default pending
               const finalStatus = isInPaidSet ? 'Paid' : (isPaidStatus ? 'Paid' : 'Pending');
-              
+
               return {
                 _id: invoiceId,           // Use MongoDB _id for PDF download
                 id: invoiceId,            // Backwards compatibility
@@ -535,19 +535,19 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
               };
             });
           }
-          
+
           console.log('💳 Processed invoices from Billing collection:', processedInvoices);
-          
+
         } catch (invoiceError) {
           console.warn('⚠️ Failed to fetch invoices from Billing API:', invoiceError);
           console.log('📋 Falling back to empty invoice list');
           processedInvoices = [];
         }
-        
+
         setData({
           subscription: {
-            plan: { 
-              name: subscriptionData.planName || subscriptionData.plan?.name || 'Unknown Plan', 
+            plan: {
+              name: subscriptionData.planName || subscriptionData.plan?.name || 'Unknown Plan',
               price: subscriptionData.pricing?.totalAmount || subscriptionData.pricing?.finalPrice || 0
             },
             status: subscriptionData.status,
@@ -558,7 +558,7 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
         console.log('📊 Subscription data loaded successfully');
       } else {
         console.log('⚠️ No subscription data found, showing empty invoices');
-        
+
         // Don't show fake invoices - only show real payment data
         setData({
           subscription: {
@@ -576,7 +576,7 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
       console.error('❌ Error loading billing data:', error);
       setError(error.message || 'Failed to load billing data');
       onError?.(error.message || 'Failed to load billing data');
-      
+
       // Don't show fake invoices on error - show empty state
       setData({
         subscription: {
@@ -628,7 +628,7 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
             <ReceiptIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
             Current Subscription
           </Typography>
-          
+
           {subscription && (
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, md: 6 }}>
@@ -657,7 +657,7 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
           <Typography variant="h6" gutterBottom>
             Recent Invoices
           </Typography>
-          
+
           {invoices && invoices.length > 0 ? (
             <TableContainer component={Paper} variant="outlined">
               <Table>
@@ -679,8 +679,8 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
                         <Chip
                           label={invoice.status}
                           color={
-                            (invoice.status?.toLowerCase() === 'paid') 
-                              ? 'success' 
+                            (invoice.status?.toLowerCase() === 'paid')
+                              ? 'success'
                               : 'warning'
                           }
                           size="small"
@@ -694,14 +694,14 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
                           paidInvoices={paidInvoices}
                           onPaymentSuccess={(updatedInvoice: any) => {
                             console.log('🎉 PAYMENT SUCCESS RECEIVED IN MAIN COMPONENT:', updatedInvoice);
-                            
+
                             // Track this invoice as paid permanently
                             const newPaidInvoices = new Set(Array.from(paidInvoices).concat([updatedInvoice.id]));
                             setPaidInvoices(newPaidInvoices);
-                            
+
                             // Force immediate re-render trigger
                             setLocalRefreshTrigger(prev => prev + 1000); // Large increment to ensure uniqueness
-                            
+
                             // Create completely new invoice data with Paid status
                             const paidInvoice = {
                               ...updatedInvoice,
@@ -709,7 +709,7 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
                               paymentDate: new Date().toISOString(),
                               transactionId: `TXN${Date.now()}`
                             };
-                            
+
                             console.log('🔄 Payment state update:', {
                               invoiceId: paidInvoice.id,
                               oldStatus: updatedInvoice.status,
@@ -717,7 +717,7 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
                               timestamp: new Date().toISOString(),
                               paidInvoicesSet: Array.from(newPaidInvoices)
                             });
-                            
+
                             // Force immediate state update with completely new data
                             if (data?.invoices) {
                               const newInvoices = data.invoices.map(inv => {
@@ -727,24 +727,24 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
                                 }
                                 return { ...inv }; // Ensure all objects are new references
                               });
-                              
+
                               console.log('📊 New invoices array:', newInvoices);
-                              
+
                               // Force complete state replacement with new object references
                               const newData = {
                                 subscription: { ...data.subscription },
                                 invoices: newInvoices
                               };
-                              
+
                               setData(newData);
-                              
+
                               // Multiple refresh triggers for UI update
                               setLocalRefreshTrigger(Date.now());
                               setTimeout(() => setLocalRefreshTrigger(Date.now()), 100);
                               setTimeout(() => setLocalRefreshTrigger(Date.now()), 500);
                               setTimeout(() => setLocalRefreshTrigger(Date.now()), 1000);
                             }
-                            
+
                             // Show success message
                             alert(`✅ Payment of ₹${paidInvoice.amount} completed! Invoice status updated to Paid.`);
                             onSuccess?.('Payment completed successfully');

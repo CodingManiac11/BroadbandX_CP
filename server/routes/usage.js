@@ -84,33 +84,66 @@ router.get('/export/csv', authMiddleware, async (req, res) => {
       filename = `usage_detailed_${new Date().toISOString().split('T')[0]}.csv`;
 
     } else {
-      // Export aggregated analytics (matches usage analytics page - NO DUPLICATES)
-      let query = {};
+      // Export aggregated analytics from UsageLog (always has latest data)
+      let matchQuery = {};
       if (!isAdmin) {
-        query.user = userId;
+        matchQuery.userId = userId;
       }
       if (Object.keys(dateQuery).length > 0) {
-        query.date = dateQuery;
+        matchQuery.timestamp = dateQuery;
       }
 
-      const usageAnalytics = await UsageAnalytics.find(query)
-        .populate('user', 'firstName lastName email')
-        .populate({
-          path: 'subscription',
-          populate: {
-            path: 'plan',
-            select: 'name'
+      // Aggregate UsageLog by date and user
+      const aggregated = await UsageLog.aggregate([
+        { $match: matchQuery },
+        {
+          $group: {
+            _id: {
+              date: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } },
+              userId: '$userId'
+            },
+            totalDownload: { $sum: '$download' },
+            totalUpload: { $sum: '$upload' },
+            avgDownloadSpeed: { $avg: '$downloadSpeed' },
+            avgUploadSpeed: { $avg: '$uploadSpeed' },
+            totalSessions: { $sum: 1 },
+            avgSessionDuration: { $avg: '$sessionDuration' },
+            avgLatency: { $avg: '$latency' },
+            avgPacketLoss: { $avg: '$packetLoss' },
+            avgUptime: { $avg: { $ifNull: ['$uptime', 99] } }
           }
-        })
-        .sort({ date: -1 })
-        .lean();
+        },
+        { $sort: { '_id.date': -1 } }
+      ]);
 
-      if (usageAnalytics.length === 0) {
-        csv = 'Date,Customer Name,Customer Email,Plan Name,Data Used (GB),Avg Download Speed (Mbps),Avg Upload Speed (Mbps),Total Sessions,Avg Session Duration (min),Uptime (%),Packet Loss (%)\n';
-      } else {
-        csv = usageAnalyticsToCSV(usageAnalytics);
-      }
-      filename = `usage_analytics_${new Date().toISOString().split('T')[0]}.csv`;
+      // Get unique user IDs and fetch user + subscription info
+      const User = require('../models/User');
+      const Subscription = require('../models/Subscription');
+
+      const userIds = [...new Set(aggregated.map(r => r._id.userId.toString()))];
+      const users = await User.find({ _id: { $in: userIds } }).select('firstName lastName email').lean();
+      const userMap = {};
+      users.forEach(u => { userMap[u._id.toString()] = u; });
+
+      const subs = await Subscription.find({ user: { $in: userIds }, status: 'active' }).populate('plan', 'name').lean();
+      const subMap = {};
+      subs.forEach(s => { subMap[s.user.toString()] = s; });
+
+      const GB = 1073741824;
+      const rows = aggregated.map(r => {
+        const uid = r._id.userId.toString();
+        const u = userMap[uid];
+        const sub = subMap[uid];
+        const name = u ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : 'Unknown';
+        const email = u?.email || 'N/A';
+        const planName = sub?.plan?.name || 'N/A';
+        const dataUsedGB = ((r.totalDownload + r.totalUpload) / GB).toFixed(2);
+
+        return `${r._id.date},"${name}","${email}","${planName}",${dataUsedGB},${(r.avgDownloadSpeed || 0).toFixed(2)},${(r.avgUploadSpeed || 0).toFixed(2)},${r.totalSessions},${(r.avgSessionDuration || 0).toFixed(2)},${(r.avgUptime || 99).toFixed(2)},${(r.avgPacketLoss || 0).toFixed(2)}`;
+      });
+
+      csv = 'Date,Customer Name,Customer Email,Plan Name,Data Used (GB),Avg Download Speed (Mbps),Avg Upload Speed (Mbps),Total Sessions,Avg Session Duration (min),Uptime (%),Packet Loss (%)\n' + rows.join('\n');
+      filename = `all_usage_${new Date().toISOString().split('T')[0]}.csv`;
     }
 
     // Set headers for CSV download

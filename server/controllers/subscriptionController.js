@@ -52,7 +52,8 @@ const createSubscription = asyncHandler(async (req, res) => {
   if (billingCycle === 'yearly') {
     endDate.setFullYear(endDate.getFullYear() + 1);
   } else {
-    endDate.setMonth(endDate.getMonth() + 1);
+    // Monthly plans are exactly 30 days
+    endDate.setDate(endDate.getDate() + 30);
   }
 
   // Calculate tax (example: 8% tax)
@@ -225,7 +226,7 @@ const cancelSubscription = asyncHandler(async (req, res) => {
 
   // Calculate cancellation date
   const cancellationDate = effectiveDate ? new Date(effectiveDate) : new Date();
-  
+
   // Check if refund is eligible (within 30 days and less than 10% usage)
   const daysSinceStart = Math.floor((Date.now() - subscription.startDate) / (1000 * 60 * 60 * 24));
   const isRefundEligible = daysSinceStart <= 30 && subscription.currentUsagePercentage < 10;
@@ -301,7 +302,7 @@ const upgradePlan = asyncHandler(async (req, res) => {
   const remainingDays = subscription.daysRemaining;
   const totalDays = subscription.billingCycle === 'yearly' ? 365 : 30;
   const proratedCredit = (subscription.pricing.finalPrice / totalDays) * remainingDays;
-  
+
   const newPrice = subscription.billingCycle === 'yearly' ? newPlan.pricing.yearly : newPlan.pricing.monthly;
   const proratedNewPrice = (newPrice / totalDays) * remainingDays;
   const additionalCost = proratedNewPrice - proratedCredit;
@@ -323,10 +324,10 @@ const upgradePlan = asyncHandler(async (req, res) => {
     'upgraded',
     `Plan upgraded from ${oldPlan.name} to ${newPlan.name}`,
     req.user._id,
-    { 
-      oldPlan: oldPlan.name, 
+    {
+      oldPlan: oldPlan.name,
       newPlan: newPlan.name,
-      additionalCost 
+      additionalCost
     }
   );
 
@@ -340,7 +341,7 @@ const upgradePlan = asyncHandler(async (req, res) => {
       newPlan: newPlan.name,
       additionalCost
     });
-    
+
     // Also emit billing update for immediate UI refresh
     global.realTimeEvents.billingUpdated(req.user._id.toString(), {
       subscription,
@@ -386,26 +387,26 @@ const downgradePlan = asyncHandler(async (req, res) => {
 
   // Downgrade takes effect at next billing cycle unless immediate
   const downgradeDate = effectiveDate ? new Date(effectiveDate) : subscription.endDate;
-  
+
   // Store downgrade request
   const oldPlan = subscription.plan;
-  
+
   if (downgradeDate > new Date()) {
     // Schedule downgrade for future
     subscription.serviceHistory.push({
       type: 'downgrade',
       description: `Downgrade scheduled from ${oldPlan.name} to ${newPlan.name}`,
       performedBy: req.user._id,
-      metadata: { 
-        oldPlan: oldPlan.name, 
+      metadata: {
+        oldPlan: oldPlan.name,
         newPlan: newPlan.name,
         effectiveDate: downgradeDate,
         scheduled: true
       }
     });
-    
+
     await subscription.save();
-    
+
     res.status(200).json({
       status: 'success',
       message: 'Downgrade scheduled for next billing cycle',
@@ -469,7 +470,8 @@ const renewSubscription = asyncHandler(async (req, res) => {
   if (subscription.billingCycle === 'yearly') {
     newEndDate.setFullYear(newEndDate.getFullYear() + 1);
   } else {
-    newEndDate.setMonth(newEndDate.getMonth() + 1);
+    // Monthly plans are exactly 30 days
+    newEndDate.setDate(newEndDate.getDate() + 30);
   }
 
   subscription.endDate = newEndDate;
@@ -511,7 +513,7 @@ const renewSubscription = asyncHandler(async (req, res) => {
 // @access  Private
 const pauseSubscription = asyncHandler(async (req, res) => {
   const { reason } = req.body;
-  
+
   const subscription = await Subscription.findById(req.params.id);
 
   if (!subscription) {
@@ -604,8 +606,8 @@ const getSubscriptionUsage = asyncHandler(async (req, res) => {
     currentMonth: subscription.usage.currentMonth,
     history: subscription.usage.history,
     usagePercentage: subscription.currentUsagePercentage,
-    planLimit: subscription.plan.features.dataLimit.unlimited ? 'Unlimited' : 
-               `${subscription.plan.features.dataLimit.amount} ${subscription.plan.features.dataLimit.unit}`
+    planLimit: subscription.plan.features.dataLimit.unlimited ? 'Unlimited' :
+      `${subscription.plan.features.dataLimit.amount} ${subscription.plan.features.dataLimit.unit}`
   };
 
   res.status(200).json({
@@ -621,7 +623,7 @@ const getSubscriptionUsage = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 const updateUsage = asyncHandler(async (req, res) => {
   const { dataUsed, month, year } = req.body;
-  
+
   const subscription = await Subscription.findById(req.params.id);
 
   if (!subscription) {
@@ -637,7 +639,7 @@ const updateUsage = asyncHandler(async (req, res) => {
     const existingRecord = subscription.usage.history.find(
       record => record.month === month && record.year === year
     );
-    
+
     if (existingRecord) {
       existingRecord.dataUsed = dataUsed;
     } else {
@@ -665,7 +667,7 @@ const updateUsage = asyncHandler(async (req, res) => {
 // @access  Private
 const scheduleInstallation = asyncHandler(async (req, res) => {
   const { scheduledDate, address, instructions } = req.body;
-  
+
   const subscription = await Subscription.findById(req.params.id);
 
   if (!subscription) {
@@ -707,7 +709,7 @@ const scheduleInstallation = asyncHandler(async (req, res) => {
 // @access  Private
 const addPayment = asyncHandler(async (req, res) => {
   const { amount, paymentMethod, transactionId } = req.body;
-  
+
   const subscription = await Subscription.findById(req.params.id);
 
   if (!subscription) {
@@ -816,11 +818,11 @@ const activateSubscription = asyncHandler(async (req, res) => {
 const getPlanHistory = asyncHandler(async (req, res) => {
   try {
     // Get user's current and past subscriptions with service history
-    const subscriptions = await Subscription.find({ 
-      user: req.user._id 
+    const subscriptions = await Subscription.find({
+      user: req.user._id
     })
-    .populate('plan', 'name pricing features')
-    .sort({ createdAt: 1 }); // Sort by creation date ascending
+      .populate('plan', 'name pricing features')
+      .sort({ createdAt: 1 }); // Sort by creation date ascending
 
     if (!subscriptions || subscriptions.length === 0) {
       return res.status(200).json({
@@ -836,7 +838,7 @@ const getPlanHistory = asyncHandler(async (req, res) => {
     for (const subscription of subscriptions) {
       if (subscription.serviceHistory && subscription.serviceHistory.length > 0) {
         // Filter service history for plan-related changes
-        const planChanges = subscription.serviceHistory.filter(history => 
+        const planChanges = subscription.serviceHistory.filter(history =>
           ['activated', 'upgraded', 'downgraded', 'created'].includes(history.type)
         );
 
@@ -908,7 +910,7 @@ const getPlanHistory = asyncHandler(async (req, res) => {
     // If we don't have detailed history, create a basic one from subscription data
     if (planHistory.length === 0 && subscriptions.length > 0) {
       let previousPlan = null;
-      
+
       for (const subscription of subscriptions) {
         planHistory.push({
           _id: `basic-${subscription._id}`,

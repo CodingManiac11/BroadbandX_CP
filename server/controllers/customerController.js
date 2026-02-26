@@ -12,7 +12,7 @@ exports.getCustomerStats = async (req, res) => {
       'Pragma': 'no-cache',
       'Expires': '0'
     });
-    
+
     const userId = req.user._id;
 
     // Get active subscriptions count
@@ -26,7 +26,7 @@ exports.getCustomerStats = async (req, res) => {
       user: userId,
       status: 'active'
     }).populate('plan');
-    
+
     const monthlySpending = subscriptions.reduce((total, sub) => {
       // NO TAX POLICY - Apply correct pricing for all plans
       if (sub.planName === 'Basic Plan29' || sub.plan?.name === 'Basic Plan29') {
@@ -41,7 +41,7 @@ exports.getCustomerStats = async (req, res) => {
     // Get usage analytics for current month
     const currentDate = new Date();
     const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    
+
     const usageStats = await UsageAnalytics.aggregate([
       {
         $match: {
@@ -64,8 +64,7 @@ exports.getCustomerStats = async (req, res) => {
     // Count upcoming bills (due in next 30 days)
     // Calculate next bill date correctly (3rd of next month)
     const nextBillDate = new Date();
-    nextBillDate.setMonth(nextBillDate.getMonth() + 1);
-    nextBillDate.setDate(3);
+    nextBillDate.setDate(nextBillDate.getDate() + 30);
     nextBillDate.setHours(0, 0, 0, 0);
 
     console.log('  📊 Customer Stats Summary:');
@@ -105,11 +104,11 @@ exports.getCustomerSubscriptions = async (req, res) => {
       'Pragma': 'no-cache',
       'Expires': '0'
     });
-    
+
     const userId = req.user._id;
     const userEmail = req.user.email;
     const userName = req.user.firstName + ' ' + req.user.lastName;
-    
+
     // Add debug logging with user context
     console.log('🔍 SUBSCRIPTION REQUEST DEBUG:');
     console.log('  👤 Authenticated User:', userName, '(' + userEmail + ')');
@@ -117,11 +116,11 @@ exports.getCustomerSubscriptions = async (req, res) => {
     console.log('  📅 Request Time:', new Date().toISOString());
     console.log('  🌐 Request URL:', req.originalUrl);
 
-    const subscriptions = await Subscription.find({ 
+    const subscriptions = await Subscription.find({
       user: userId
       // Removed status filter to see all subscriptions
     }).populate('plan').sort({ createdAt: -1 });
-    
+
     console.log('📊 SUBSCRIPTION RESULTS:');
     console.log('  🔢 Total subscriptions found:', subscriptions.length);
     subscriptions.forEach((sub, index) => {
@@ -133,10 +132,10 @@ exports.getCustomerSubscriptions = async (req, res) => {
         createdAt: sub.createdAt,
         pricing: sub.pricing
       });
-      
+
       // Fix pricing for all plans - NO TAX POLICY
       const currentPlanName = sub.plan?.name || sub.planName;
-      
+
       if (currentPlanName === 'Basic Plan29') {
         console.log('  🔧 Fixing Basic Plan29 pricing in response...');
         sub.pricing = {
@@ -147,12 +146,12 @@ exports.getCustomerSubscriptions = async (req, res) => {
           taxAmount: 0,
           currency: 'INR'
         };
-        
+
         // Also ensure planName is set correctly
         if (!sub.planName) {
           sub.planName = 'Basic Plan29';
         }
-        
+
         console.log('  ✅ Fixed Basic Plan29 pricing:', sub.pricing);
       } else if (currentPlanName === 'Premium Plan79') {
         console.log('  🔧 Fixing Premium Plan79 pricing in response...');
@@ -164,12 +163,12 @@ exports.getCustomerSubscriptions = async (req, res) => {
           taxAmount: 0,
           currency: 'INR'
         };
-        
+
         // Also ensure planName is set correctly
         if (!sub.planName) {
           sub.planName = 'Premium Plan79';
         }
-        
+
         console.log('  ✅ Fixed Premium Plan79 pricing:', sub.pricing);
       } else if (sub.pricing && sub.pricing.taxAmount > 0) {
         // Remove tax from all other plans
@@ -201,17 +200,17 @@ exports.getCustomerSubscriptions = async (req, res) => {
 exports.getAvailablePlans = async (req, res) => {
   try {
     const { category, minSpeed, maxPrice } = req.query;
-    
+
     let filter = { isActive: true };
-    
+
     if (category) filter.category = category;
     if (maxPrice) filter['pricing.monthly'] = { $lte: parseInt(maxPrice) };
-    
+
     let plans = await Plan.find(filter).sort({ popularity: -1 });
-    
+
     // Filter by minimum speed if specified
     if (minSpeed) {
-      plans = plans.filter(plan => 
+      plans = plans.filter(plan =>
         plan.features?.speed?.download >= parseInt(minSpeed)
       );
     }
@@ -277,7 +276,7 @@ exports.subscribeToPlan = async (req, res) => {
 
     // Calculate pricing - for Basic Plan29, ₹32.18 is final price inclusive of all taxes
     let basePrice, finalPrice, taxAmount, totalAmount;
-    
+
     if (plan.name === 'Basic Plan29') {
       // Basic Plan29: ₹32.18 is the final price (inclusive of all taxes)
       basePrice = 32.18;
@@ -288,19 +287,19 @@ exports.subscribeToPlan = async (req, res) => {
       // Other plans: use original pricing logic
       basePrice = billingCycle === 'yearly' ? plan.pricing.yearly : plan.pricing.monthly;
       finalPrice = basePrice;
-      
+
       // Apply discount if provided
       if (discountCode) {
         // For now, apply a sample 10% discount
         const discountApplied = basePrice * 0.1;
         finalPrice = basePrice - discountApplied;
       }
-      
+
       // Calculate tax (18% GST)
       taxAmount = finalPrice * 0.18;
       totalAmount = finalPrice + taxAmount;
     }
-    
+
     let discountApplied = 0;
     if (discountCode && plan.name !== 'Basic Plan29') {
       discountApplied = basePrice * 0.1;
@@ -312,7 +311,8 @@ exports.subscribeToPlan = async (req, res) => {
     if (billingCycle === 'yearly') {
       endDate.setFullYear(endDate.getFullYear() + 1);
     } else {
-      endDate.setMonth(endDate.getMonth() + 1);
+      // Monthly plans are exactly 30 days
+      endDate.setDate(endDate.getDate() + 30);
     }
 
     // Create subscription directly
@@ -402,13 +402,13 @@ exports.getUsageData = async (req, res) => {
     // Calculate summary statistics
     const summary = {
       totalDataUsed: usageData.reduce((sum, record) => sum + record.dataUsed, 0),
-      averageDownloadSpeed: usageData.length > 0 
-        ? usageData.reduce((sum, record) => sum + record.downloadSpeed, 0) / usageData.length 
+      averageDownloadSpeed: usageData.length > 0
+        ? usageData.reduce((sum, record) => sum + record.downloadSpeed, 0) / usageData.length
         : 0,
-      averageUploadSpeed: usageData.length > 0 
-        ? usageData.reduce((sum, record) => sum + record.uploadSpeed, 0) / usageData.length 
+      averageUploadSpeed: usageData.length > 0
+        ? usageData.reduce((sum, record) => sum + record.uploadSpeed, 0) / usageData.length
         : 0,
-      peakUsageDay: usageData.length > 0 
+      peakUsageDay: usageData.length > 0
         ? usageData.reduce((max, record) => record.dataUsed > max.dataUsed ? record : max)
         : null
     };
@@ -446,21 +446,21 @@ exports.getBillingHistory = async (req, res) => {
       user: userId,
       ...(status && { status })
     })
-    .populate('plan')
-    .sort({ createdAt: -1 })
-    .limit(parseInt(limit))
-    .skip((parseInt(page) - 1) * parseInt(limit));
-    
+      .populate('plan')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit));
+
     console.log('Billing history subscriptions:', JSON.stringify(subscriptions, null, 2));
 
     // Generate billing history from subscriptions
     const billingHistory = subscriptions.map(subscription => {
       const currentDate = new Date();
       const nextBillDate = new Date(subscription.startDate);
-      
+
       // Calculate next billing date based on billing cycle
       if (subscription.billingCycle === 'monthly') {
-        nextBillDate.setMonth(nextBillDate.getMonth() + 1);
+        nextBillDate.setDate(nextBillDate.getDate() + 30);
       } else {
         nextBillDate.setFullYear(nextBillDate.getFullYear() + 1);
       }
@@ -505,10 +505,10 @@ exports.updateProfile = async (req, res) => {
 
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { 
-        firstName, 
-        lastName, 
-        phone, 
+      {
+        firstName,
+        lastName,
+        phone,
         address,
         updatedAt: new Date()
       },
@@ -585,9 +585,9 @@ exports.modifySubscription = async (req, res) => {
   try {
     const userId = req.user._id;
     const { subscriptionId } = req.params;
-    const { 
-      newPlanId, 
-      billingCycle, 
+    const {
+      newPlanId,
+      billingCycle,
       reason = 'Customer requested plan change'
     } = req.body;
 
@@ -629,7 +629,8 @@ exports.modifySubscription = async (req, res) => {
     if (billingCycle === 'yearly') {
       newEndDate.setFullYear(newEndDate.getFullYear() + 1);
     } else {
-      newEndDate.setMonth(newEndDate.getMonth() + 1);
+      // Monthly plans are exactly 30 days
+      newEndDate.setDate(newEndDate.getDate() + 30);
     }
 
     // Update subscription
@@ -643,13 +644,14 @@ exports.modifySubscription = async (req, res) => {
     subscription.pricing.finalPrice = totalAmount;
     subscription.modificationReason = reason;
     subscription.lastModified = new Date();
-    
+
     // Update next billing date
     const nextBillingDate = new Date(currentDate);
     if (billingCycle === 'yearly') {
       nextBillingDate.setFullYear(nextBillingDate.getFullYear() + 1);
     } else {
-      nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
+      // Monthly plans are exactly 30 days
+      nextBillingDate.setDate(nextBillingDate.getDate() + 30);
     }
     subscription.nextBillingDate = nextBillingDate;
 

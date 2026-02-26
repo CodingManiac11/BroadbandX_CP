@@ -50,7 +50,8 @@ import {
   Support,
   Add,
   Notifications as NotificationsIcon,
-  Download as DownloadIcon
+  Download as DownloadIcon,
+  Person as PersonIcon
 } from '@mui/icons-material';
 import { BillingDashboard } from '../components/billing';
 import SupportCenter from '../components/SupportCenter';
@@ -63,6 +64,9 @@ import webSocketService from '../services/webSocketService';
 import { customerService, CustomerStats, BillingHistory } from '../services/customerService';
 import { Plan, Subscription } from '../types/index';
 import RazorpayPaymentForm from '../components/RazorpayPaymentForm';
+import AIChatBot from '../components/AIChatBot';
+import SpeedTest from '../components/SpeedTest';
+import ProfilePage from './ProfilePage';
 import { Modal, ModalBody } from '../components/Modal';
 
 const CustomerDashboard: React.FC = () => {
@@ -542,8 +546,10 @@ const CustomerDashboard: React.FC = () => {
     { text: 'Browse Plans', icon: <PlansIcon />, value: 'plans' },
     { text: 'My Subscriptions', icon: <SubscriptionsIcon />, value: 'subscriptions' },
     { text: 'Usage Analytics', icon: <AnalyticsIcon />, value: 'usage' },
+    { text: 'Speed Test', icon: <SpeedIcon />, value: 'speedtest' },
     { text: 'Billing', icon: <BillingIcon />, value: 'billing' },
     { text: 'Support', icon: <Support />, value: 'support' },
+    { text: 'My Profile', icon: <PersonIcon />, value: 'profile' },
     { text: 'Settings', icon: <SettingsIcon />, value: 'settings' },
   ];
 
@@ -845,8 +851,12 @@ const CustomerDashboard: React.FC = () => {
         return <BillingSection />;
       case 'usage':
         return <UsageTracking />;
+      case 'speedtest':
+        return <SpeedTest />;
       case 'support':
         return <SupportCenter />;
+      case 'profile':
+        return <ProfilePage />;
       case 'settings':
         return <AccountSettingsSimple />;
       default:
@@ -922,29 +932,78 @@ const CustomerDashboard: React.FC = () => {
                   <Typography variant="h6" gutterBottom>
                     Account Summary
                   </Typography>
+
+                  {/* Current Plan */}
+                  <Box mb={2}>
+                    <Typography variant="body2" color="textSecondary">
+                      Current Plan
+                    </Typography>
+                    <Typography variant="h6" color="primary">
+                      {subscriptions.find(s => s.status === 'active')?.plan?.name || 'No Active Plan'}
+                    </Typography>
+                  </Box>
+
+                  {/* Next Bill Due */}
                   <Box mb={2}>
                     <Typography variant="body2" color="textSecondary">
                       Next Bill Due
                     </Typography>
-                    <Typography variant="h6" color="primary">
+                    <Typography variant="h6" color={stats.nextBillDate ? 'primary' : 'textSecondary'}>
                       {stats.nextBillDate ? new Date(stats.nextBillDate).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'long',
                         day: 'numeric'
-                      }) : 'N/A'}
+                      }) : stats.activeSubscriptions > 0 ? 'Processing...' : 'Subscribe to a plan'}
                     </Typography>
                   </Box>
+
+                  {/* Subscription Expiry */}
                   <Box mb={2}>
                     <Typography variant="body2" color="textSecondary">
-                      Amount Due
+                      Subscription Expires
                     </Typography>
-                    <Typography variant="h6">
-                      {stats.activeSubscriptions > 0 ? `₹${stats.monthlySpending.toLocaleString()}` : 'No active subscription'}
+                    <Typography variant="h6" color={
+                      (() => {
+                        const activeSub = subscriptions.find(s => s.status === 'active');
+                        if (!activeSub?.endDate) return 'textSecondary';
+                        const daysLeft = Math.ceil((new Date(activeSub.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                        if (daysLeft <= 3) return 'error';
+                        if (daysLeft <= 7) return 'warning';
+                        return 'success';
+                      })()
+                    }>
+                      {(() => {
+                        const activeSub = subscriptions.find(s => s.status === 'active');
+                        if (!activeSub?.endDate) return 'No active plan';
+                        const daysLeft = Math.ceil((new Date(activeSub.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                        const dateStr = new Date(activeSub.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        if (daysLeft <= 0) return `⚠️ Expired`;
+                        if (daysLeft <= 3) return `🔴 ${dateStr} (${daysLeft}d left)`;
+                        if (daysLeft <= 7) return `🟡 ${dateStr} (${daysLeft}d left)`;
+                        return `🟢 ${dateStr} (${daysLeft}d left)`;
+                      })()}
                     </Typography>
                   </Box>
-                  {stats.activeSubscriptions > 0 && (
-                    <Button variant="contained" fullWidth startIcon={<Payment />}>
+
+                  {/* Member Since */}
+                  <Box mb={2}>
+                    <Typography variant="body2" color="textSecondary">
+                      Member Since
+                    </Typography>
+                    <Typography variant="h6">
+                      {user?.createdAt
+                        ? new Date(user.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+                        : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                    </Typography>
+                  </Box>
+
+                  {stats.activeSubscriptions > 0 ? (
+                    <Button variant="contained" fullWidth startIcon={<Payment />} onClick={() => setActiveSection('billing')}>
                       Pay Now
+                    </Button>
+                  ) : (
+                    <Button variant="contained" fullWidth color="primary" onClick={() => setActiveSection('plans')}>
+                      Get a Plan
                     </Button>
                   )}
                 </CardContent>
@@ -1268,6 +1327,9 @@ const CustomerDashboard: React.FC = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* AI Chat Support Bot */}
+      <AIChatBot />
     </Box>
   );
 };

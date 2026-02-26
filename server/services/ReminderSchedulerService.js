@@ -50,9 +50,9 @@ class ReminderSchedulerService {
   async processPendingReminders() {
     try {
       const pendingReminders = await BillingReminder.getPendingReminders();
-      
+
       console.log(`📨 Processing ${pendingReminders.length} pending reminders...`);
-      
+
       let sent = 0;
       let failed = 0;
 
@@ -62,11 +62,11 @@ class ReminderSchedulerService {
           sent++;
         } catch (error) {
           console.error(`Failed to send reminder ${reminder._id}:`, error);
-          
+
           // Record error and retry
           reminder.metadata.error = error.message;
           await reminder.retry();
-          
+
           failed++;
         }
       }
@@ -192,12 +192,13 @@ class ReminderSchedulerService {
     }
 
     // Send email reminder
-    await emailService.sendBillingReminder(reminder.user, {
+    await emailService.sendPaymentReminder(reminder.user.email, {
       type: reminder.type,
       dueDate: reminder.dueDate,
       amount: reminder.amount,
       reminderLevel: reminder.reminderLevel,
-      subscription: reminder.subscription
+      subscription: reminder.subscription,
+      userName: reminder.user.name || reminder.user.email
     });
 
     await reminder.markAsSent(['email']);

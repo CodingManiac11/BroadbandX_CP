@@ -34,7 +34,7 @@ async function checkExpirySchedule() {
                 endDate = new Date(sub.endDate);
             } else if (sub.startDate) {
                 endDate = new Date(sub.startDate);
-                endDate.setMonth(endDate.getMonth() + 1);
+                endDate.setDate(endDate.getDate() + 30); // 30-day billing period
             } else {
                 endDate = new Date();
             }

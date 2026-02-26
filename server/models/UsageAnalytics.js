@@ -39,7 +39,7 @@ const usageAnalyticsSchema = new mongoose.Schema({
         dataUsed: { type: Number, default: 0 }
       }],
       deviceTypes: [{
-        type: { type: String, enum: ['mobile', 'desktop', 'tablet', 'smart-tv', 'gaming-console', 'iot'] },
+        type: { type: String, enum: ['mobile', 'desktop', 'tablet', 'smart-tv', 'gaming-console', 'iot', 'other'] },
         count: { type: Number, default: 0 },
         dataUsed: { type: Number, default: 0 }
       }]
@@ -119,7 +119,7 @@ const usageAnalyticsSchema = new mongoose.Schema({
 });
 
 // Virtual for usage efficiency (actual vs. plan capacity)
-usageAnalyticsSchema.virtual('usageEfficiency').get(function() {
+usageAnalyticsSchema.virtual('usageEfficiency').get(function () {
   if (this.populated('subscription') && this.subscription.plan) {
     const planLimit = this.subscription.plan.features.dataLimit.amount;
     if (planLimit && !this.subscription.plan.features.dataLimit.unlimited) {
@@ -130,7 +130,7 @@ usageAnalyticsSchema.virtual('usageEfficiency').get(function() {
 });
 
 // Virtual for average speed
-usageAnalyticsSchema.virtual('averageSpeed').get(function() {
+usageAnalyticsSchema.virtual('averageSpeed').get(function () {
   if (this.metrics.speedTests && this.metrics.speedTests.length > 0) {
     const totalDown = this.metrics.speedTests.reduce((sum, test) => sum + test.downloadSpeed, 0);
     const totalUp = this.metrics.speedTests.reduce((sum, test) => sum + test.uploadSpeed, 0);
@@ -155,10 +155,10 @@ usageAnalyticsSchema.index({ user: 1, 'networkConditions.timeOfDay': 1 });
 usageAnalyticsSchema.index({ subscription: 1, 'applicationUsage.application': 1 });
 
 // Static method to get user usage summary
-usageAnalyticsSchema.statics.getUserUsageSummary = function(userId, days = 30) {
+usageAnalyticsSchema.statics.getUserUsageSummary = function (userId, days = 30) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
-  
+
   return this.aggregate([
     {
       $match: {
@@ -183,10 +183,10 @@ usageAnalyticsSchema.statics.getUserUsageSummary = function(userId, days = 30) {
 };
 
 // Static method to get usage patterns for recommendations
-usageAnalyticsSchema.statics.getUsagePatterns = function(userId, months = 3) {
+usageAnalyticsSchema.statics.getUsagePatterns = function (userId, months = 3) {
   const startDate = new Date();
   startDate.setMonth(startDate.getMonth() - months);
-  
+
   return this.aggregate([
     {
       $match: {
@@ -211,7 +211,7 @@ usageAnalyticsSchema.statics.getUsagePatterns = function(userId, months = 3) {
 };
 
 // Static method to detect anomalies
-usageAnalyticsSchema.statics.detectAnomalies = function(userId, threshold = 2) {
+usageAnalyticsSchema.statics.detectAnomalies = function (userId, threshold = 2) {
   // This would typically involve more complex statistical analysis
   return this.aggregate([
     {
@@ -247,7 +247,7 @@ usageAnalyticsSchema.statics.detectAnomalies = function(userId, threshold = 2) {
 };
 
 // Method to add speed test result
-usageAnalyticsSchema.methods.addSpeedTest = function(downloadSpeed, uploadSpeed, latency, location, server) {
+usageAnalyticsSchema.methods.addSpeedTest = function (downloadSpeed, uploadSpeed, latency, location, server) {
   this.metrics.speedTests.push({
     downloadSpeed,
     uploadSpeed,
@@ -259,7 +259,7 @@ usageAnalyticsSchema.methods.addSpeedTest = function(downloadSpeed, uploadSpeed,
 };
 
 // Method to add anomaly
-usageAnalyticsSchema.methods.addAnomaly = function(type, severity, description) {
+usageAnalyticsSchema.methods.addAnomaly = function (type, severity, description) {
   this.anomalies.push({
     type,
     severity,
@@ -269,17 +269,17 @@ usageAnalyticsSchema.methods.addAnomaly = function(type, severity, description) 
 };
 
 // Method to calculate usage score (for recommendations)
-usageAnalyticsSchema.methods.calculateUsageScore = function() {
+usageAnalyticsSchema.methods.calculateUsageScore = function () {
   const weights = {
     dataUsage: 0.4,
     speedConsistency: 0.2,
     uptime: 0.2,
     applicationDiversity: 0.2
   };
-  
+
   // Normalize data usage (0-100 scale)
   const dataScore = Math.min(100, (this.metrics.dataUsed / 1000) * 100);
-  
+
   // Speed consistency score
   const speedTests = this.metrics.speedTests;
   let speedScore = 0;
@@ -289,14 +289,14 @@ usageAnalyticsSchema.methods.calculateUsageScore = function() {
     const variance = speeds.reduce((sum, speed) => sum + Math.pow(speed - avgSpeed, 2), 0) / speeds.length;
     speedScore = Math.max(0, 100 - Math.sqrt(variance));
   }
-  
+
   // Uptime score
   const uptimeScore = this.metrics.qualityMetrics.uptime;
-  
+
   // Application diversity score
   const appTypes = new Set(this.applicationUsage.map(app => app.application));
   const diversityScore = Math.min(100, (appTypes.size / 9) * 100); // 9 total app types
-  
+
   return (
     dataScore * weights.dataUsage +
     speedScore * weights.speedConsistency +

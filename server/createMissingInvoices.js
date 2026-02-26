@@ -40,7 +40,7 @@ async function createMissingInvoices() {
       // Create missing billing record
       const billingStart = new Date(payment.capturedAt || payment.createdAt);
       const billingEnd = new Date(billingStart);
-      billingEnd.setMonth(billingEnd.getMonth() + 1);
+      billingEnd.setDate(billingEnd.getDate() + 30); // 30-day billing period
 
       // Generate invoice number
       const date = new Date();

@@ -14,20 +14,49 @@ const transporter = nodemailer.createTransport({
  */
 const EMAIL_TEMPLATES = {
   PAYMENT_REMINDER: {
-    subject: 'Payment Reminder - BroadbandX',
-    template: (data) => `
-      <h2>Payment Reminder</h2>
-      <p>Dear ${data.customerName},</p>
-      <p>This is a reminder that your payment of $${data.amount} for your BroadbandX subscription is due on ${data.dueDate}.</p>
-      <p>Subscription Details:</p>
-      <ul>
-        <li>Plan: ${data.planName}</li>
-        <li>Amount Due: $${data.amount}</li>
-        <li>Due Date: ${data.dueDate}</li>
-      </ul>
-      <p>Please ensure timely payment to avoid any service interruptions.</p>
-      <p>You can make the payment by logging into your account at <a href="${process.env.CLIENT_URL}/dashboard">dashboard</a>.</p>
-    `,
+    subject: (data) => data.type === 'expiring_soon'
+      ? `⚠️ Subscription Expiring Soon - BroadbandX`
+      : `Payment Reminder - BroadbandX`,
+    template: (data) => {
+      const dueDate = data.dueDate ? new Date(data.dueDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
+      const urgencyColor = data.reminderLevel >= 5 ? '#dc3545' : data.reminderLevel >= 3 ? '#fd7e14' : '#28a745';
+      const urgencyLabel = data.reminderLevel >= 5 ? '🔴 URGENT' : data.reminderLevel >= 3 ? '🟡 IMPORTANT' : '🟢 REMINDER';
+
+      return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: ${urgencyColor}; color: white; padding: 15px 20px; border-radius: 8px 8px 0 0;">
+          <h2 style="margin: 0;">${urgencyLabel} - ${data.type === 'expiring_soon' ? 'Subscription Expiring' : 'Payment Reminder'}</h2>
+        </div>
+        <div style="border: 1px solid #e0e0e0; border-top: none; padding: 20px; border-radius: 0 0 8px 8px;">
+          <p>Dear ${data.userName || data.customerName || 'Customer'},</p>
+          <p>${data.type === 'expiring_soon'
+          ? `Your BroadbandX subscription is expiring on <strong>${dueDate}</strong>. Please renew to avoid service interruption.`
+          : `This is a reminder that your payment of <strong>₹${data.amount}</strong> for your BroadbandX subscription is due on <strong>${dueDate}</strong>.`
+        }</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+            <tr style="background: #f8f9fa;">
+              <td style="padding: 10px; border: 1px solid #e0e0e0;"><strong>Plan</strong></td>
+              <td style="padding: 10px; border: 1px solid #e0e0e0;">${data.planName || 'Your Plan'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px; border: 1px solid #e0e0e0;"><strong>Amount</strong></td>
+              <td style="padding: 10px; border: 1px solid #e0e0e0;">₹${data.amount || 0}</td>
+            </tr>
+            <tr style="background: #f8f9fa;">
+              <td style="padding: 10px; border: 1px solid #e0e0e0;"><strong>Due Date</strong></td>
+              <td style="padding: 10px; border: 1px solid #e0e0e0;">${dueDate}</td>
+            </tr>
+          </table>
+          <p style="text-align: center; margin-top: 20px;">
+            <a href="${process.env.CLIENT_URL || 'http://localhost:3000'}/dashboard" style="background: ${urgencyColor}; color: white; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: bold;">
+              ${data.type === 'expiring_soon' ? 'Renew Now' : 'Pay Now'}
+            </a>
+          </p>
+          <p style="color: #666; font-size: 12px; margin-top: 20px;">Please ensure timely payment to avoid any service interruptions.</p>
+        </div>
+      </div>
+    `;
+    },
   },
   SERVICE_UPDATE: {
     subject: 'Service Update - BroadbandX',
@@ -77,7 +106,7 @@ const EMAIL_TEMPLATES = {
     `,
   },
   SUPPORT_TICKET: {
-    subject: (ticketNumber) => `Support Ticket Update - ${ticketNumber}`,
+    subject: (data) => `Support Ticket Update - ${data.ticketNumber || data}`,
     template: (data) => `
       <h2>Support Ticket Update</h2>
       <p>Dear ${data.customerName},</p>
@@ -184,7 +213,7 @@ const EMAIL_TEMPLATES = {
     `,
   },
   HIGH_RISK_ALERT: {
-    subject: (count) => `⚠️ ALERT: ${count} High-Risk Customer${count > 1 ? 's' : ''} Detected - BroadbandX`,
+    subject: (data) => `⚠️ ALERT: ${data.count || data} High-Risk Customer${(data.count || data) > 1 ? 's' : ''} Detected - BroadbandX`,
     template: (data) => `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 20px; border-radius: 10px 10px 0 0;">
@@ -244,7 +273,7 @@ const EMAIL_TEMPLATES = {
     `,
   },
   SCHEDULED_REPORT: {
-    subject: (period) => `📊 ${period} AI Pricing Report - BroadbandX`,
+    subject: (data) => `📊 ${data.period || data} AI Pricing Report - BroadbandX`,
     template: (data) => `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 20px; border-radius: 10px 10px 0 0;">
@@ -294,6 +323,58 @@ const EMAIL_TEMPLATES = {
       </div>
     `,
   },
+  SUBSCRIPTION_EXPIRED: {
+    subject: '⚠️ Your BroadbandX Plan Has Expired',
+    template: (data) => `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%); padding: 30px 20px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: #fff; margin: 0; font-size: 24px;">⚠️ Plan Expired</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0;">Your broadband service needs renewal</p>
+        </div>
+        <div style="padding: 30px 20px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="font-size: 16px; color: #333;">Hi ${data.userName},</p>
+          <p style="font-size: 15px; color: #555; line-height: 1.6;">Your <strong>${data.planName}</strong> subscription expired on <strong>${data.expiryDate}</strong>.</p>
+          <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px;">
+            <p style="margin: 0; color: #92400e; font-weight: 600;">🕐 Grace Period: ${data.graceDays} days</p>
+            <p style="margin: 5px 0 0; color: #92400e;">Your service will continue until <strong>${data.gracePeriodEnd}</strong>. After that, your connection will be suspended.</p>
+          </div>
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${process.env.CLIENT_URL || 'http://localhost:5173'}/dashboard" style="display: inline-block; background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 14px 40px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Renew Now →</a>
+          </div>
+          <p style="font-size: 14px; color: #888;">Renewal amount: <strong>₹${data.amount}</strong></p>
+        </div>
+        <div style="background: #f9fafb; padding: 15px; text-align: center; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="margin: 0; color: #6b7280; font-size: 12px;">BroadbandX | Subscription Management</p>
+        </div>
+      </div>
+    `,
+  },
+  SUBSCRIPTION_SUSPENDED: {
+    subject: '🚫 Your BroadbandX Service Has Been Suspended',
+    template: (data) => `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 30px 20px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: #fff; margin: 0; font-size: 24px;">🚫 Service Suspended</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0;">Action required to restore your connection</p>
+        </div>
+        <div style="padding: 30px 20px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="font-size: 16px; color: #333;">Hi ${data.userName},</p>
+          <p style="font-size: 15px; color: #555; line-height: 1.6;">Your <strong>${data.planName}</strong> subscription has been <strong style="color: #ef4444;">suspended</strong> due to non-renewal after the grace period ended.</p>
+          <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; border-radius: 4px;">
+            <p style="margin: 0; color: #991b1b; font-weight: 600;">Your broadband service is currently inactive.</p>
+            <p style="margin: 5px 0 0; color: #991b1b;">Renew now to restore your connection immediately.</p>
+          </div>
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${process.env.CLIENT_URL || 'http://localhost:5173'}/dashboard" style="display: inline-block; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; padding: 14px 40px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Restore Service →</a>
+          </div>
+          <p style="font-size: 14px; color: #888;">Renewal amount: <strong>₹${data.amount}</strong></p>
+        </div>
+        <div style="background: #f9fafb; padding: 15px; text-align: center; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="margin: 0; color: #6b7280; font-size: 12px;">BroadbandX | Subscription Management</p>
+        </div>
+      </div>
+    `,
+  },
 };
 
 /**
@@ -308,7 +389,7 @@ const sendTemplatedEmail = async (to, templateName, data) => {
   }
 
   const template = EMAIL_TEMPLATES[templateName];
-  const subject = typeof template.subject === 'function' ? template.subject(data.ticketNumber) : template.subject;
+  const subject = typeof template.subject === 'function' ? template.subject(data) : template.subject;
 
   try {
     const mailOptions = {
@@ -425,6 +506,7 @@ const sendScheduledReport = async (to, data) => {
 };
 
 module.exports = {
+  sendTemplatedEmail,
   sendPaymentReminder,
   sendServiceUpdate,
   sendUsageAlert,

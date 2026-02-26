@@ -26,7 +26,13 @@ export interface User {
     };
     language: string;
     timezone: string;
+    dataUsageAlerts?: {
+      enabled: boolean;
+      threshold: number;
+    };
   };
+  customerSince?: string;
+  lastLogin?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -100,10 +106,12 @@ export interface Subscription {
     id?: string;
   };
   plan: Plan;
-  status: 'active' | 'suspended' | 'cancelled' | 'pending';
+  status: 'active' | 'grace_period' | 'suspended' | 'cancelled' | 'expired' | 'pending';
   startDate: string;
   endDate: string;
+  gracePeriodEnd?: string;
   nextBillingDate: string;
+  planName?: string;
   billingCycle: 'monthly' | 'yearly';
   autoRenewal: boolean;
   paymentMethod?: string;

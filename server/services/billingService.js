@@ -12,7 +12,7 @@ const ProrationService = require('./ProrationService');
  * Handles subscription lifecycle, plan changes, cancellations, and invoice generation
  */
 class BillingService {
-  
+
   /**
    * Change subscription plan with proration
    * @param {string} subscriptionId - Subscription to change
@@ -24,44 +24,44 @@ class BillingService {
   static async changePlan(subscriptionId, newPlanId, effectiveDate = null, reason = 'Customer requested plan change') {
     effectiveDate = effectiveDate || new Date();
     effectiveDate = ProrationService.normalizeToUTCMidnight(effectiveDate);
-    
+
     try {
       // Fetch subscription and validate
       const subscription = await BillingSubscription.findById(subscriptionId)
         .populate('current_plan_id');
-      
+
       if (!subscription) {
         throw new Error('Subscription not found');
       }
-      
+
       if (subscription.status !== 'ACTIVE') {
         throw new Error('Can only change plan for active subscriptions');
       }
-      
+
       // Fetch new plan and validate
       const newPlan = await BillingPlan.findById(newPlanId);
       if (!newPlan || newPlan.status !== 'ACTIVE') {
         throw new Error('New plan not found or inactive');
       }
-      
+
       // Check if already on this plan
       if (subscription.current_plan_id._id.toString() === newPlanId) {
         throw new Error('Subscription is already on the requested plan');
       }
-      
+
       // Get current billing period
       const billingPeriod = ProrationService.getBillingPeriod(subscription.billing_cycle_anchor);
-      
+
       // Validate effective date is within current billing period or future
       if (effectiveDate < billingPeriod.period_start) {
         throw new Error('Effective date cannot be before current billing period');
       }
-      
+
       // Calculate proration if change is within current period
       let prorationType = 'IMMEDIATE';
       let proratedAdjustment = null;
       let adjustmentAmount = 0;
-      
+
       if (effectiveDate < billingPeriod.period_end) {
         // Change within current period - calculate proration
         prorationType = 'PRORATED';
@@ -78,7 +78,7 @@ class BillingService {
         prorationType = 'NEXT_CYCLE';
         effectiveDate = billingPeriod.period_end;
       }
-      
+
       // Create plan history record
       const planHistory = new SubscriptionPlanHistory({
         subscription_id: subscription._id,
@@ -98,9 +98,9 @@ class BillingService {
           new_plan_price_cents: newPlan.monthly_price_cents
         }
       });
-      
+
       await planHistory.save();
-      
+
       // Create adjustment if needed
       let adjustment = null;
       if (adjustmentAmount !== 0) {
@@ -119,31 +119,31 @@ class BillingService {
             new_plan_id: newPlan._id
           }
         });
-        
+
         await adjustment.save();
       }
-      
+
       // Update subscription if change is immediate
       if (prorationType === 'PRORATED') {
         // Close current plan history
         await SubscriptionPlanHistory.findOneAndUpdate(
-          { 
+          {
             subscription_id: subscription._id,
             effective_to: null,
             _id: { $ne: planHistory._id }
           },
           { effective_to: effectiveDate }
         );
-        
+
         // Update subscription
         subscription.current_plan_id = newPlan._id;
         subscription.current_plan_name = newPlan.name;
         subscription.monthly_price_cents = newPlan.monthly_price_cents;
         subscription.last_plan_change_date = effectiveDate;
-        
+
         await subscription.save();
       }
-      
+
       return {
         success: true,
         subscription_id: subscription._id,
@@ -164,12 +164,12 @@ class BillingService {
         adjustment_id: adjustment?._id || null,
         plan_history_id: planHistory._id
       };
-      
+
     } catch (error) {
       throw new Error(`Plan change failed: ${error.message}`);
     }
   }
-  
+
   /**
    * Cancel subscription with proration
    * @param {string} subscriptionId - Subscription to cancel
@@ -181,28 +181,28 @@ class BillingService {
   static async cancelSubscription(subscriptionId, cancellationDate = null, reason = 'Customer requested cancellation', immediate = true) {
     cancellationDate = cancellationDate || new Date();
     cancellationDate = ProrationService.normalizeToUTCMidnight(cancellationDate);
-    
+
     try {
       // Fetch subscription and validate
       const subscription = await BillingSubscription.findById(subscriptionId)
         .populate('current_plan_id');
-      
+
       if (!subscription) {
         throw new Error('Subscription not found');
       }
-      
+
       if (['CANCELLED', 'EXPIRED'].includes(subscription.status)) {
         throw new Error('Subscription is already cancelled or expired');
       }
-      
+
       // Get current billing period
       const billingPeriod = ProrationService.getBillingPeriod(subscription.billing_cycle_anchor);
-      
+
       let cancellationType = immediate ? 'IMMEDIATE' : 'END_OF_PERIOD';
       let effectiveCancellationDate = immediate ? cancellationDate : billingPeriod.period_end;
       let proratedRefund = null;
       let refundAmount = 0;
-      
+
       // Calculate refund if immediate cancellation within current period
       if (immediate && cancellationDate < billingPeriod.period_end) {
         proratedRefund = ProrationService.calculateCancellationProration(
@@ -213,7 +213,7 @@ class BillingService {
         );
         refundAmount = proratedRefund.credit_amount_cents;
       }
-      
+
       // Create plan history record for cancellation
       const planHistory = new SubscriptionPlanHistory({
         subscription_id: subscription._id,
@@ -232,9 +232,9 @@ class BillingService {
           cancellation_type: cancellationType
         }
       });
-      
+
       await planHistory.save();
-      
+
       // Create refund adjustment if needed
       let refundAdjustment = null;
       if (refundAmount > 0) {
@@ -252,22 +252,22 @@ class BillingService {
             cancellation_type: cancellationType
           }
         });
-        
+
         await refundAdjustment.save();
       }
-      
+
       // Update subscription status
       if (immediate) {
         // Close current plan history
         await SubscriptionPlanHistory.findOneAndUpdate(
-          { 
+          {
             subscription_id: subscription._id,
             effective_to: null,
             _id: { $ne: planHistory._id }
           },
           { effective_to: effectiveCancellationDate }
         );
-        
+
         subscription.status = 'CANCELLED';
         subscription.cancelled_at = effectiveCancellationDate;
         subscription.cancellation_reason = reason;
@@ -276,9 +276,9 @@ class BillingService {
         subscription.scheduled_cancellation_date = effectiveCancellationDate;
         subscription.cancellation_reason = reason;
       }
-      
+
       await subscription.save();
-      
+
       return {
         success: true,
         subscription_id: subscription._id,
@@ -290,12 +290,12 @@ class BillingService {
         plan_history_id: planHistory._id,
         status: subscription.status
       };
-      
+
     } catch (error) {
       throw new Error(`Cancellation failed: ${error.message}`);
     }
   }
-  
+
   /**
    * Generate invoice for subscription
    * @param {string} subscriptionId - Subscription to bill
@@ -310,34 +310,34 @@ class BillingService {
       includePendingAdjustments = true,
       dueDate = null
     } = options;
-    
+
     periodStart = ProrationService.normalizeToUTCMidnight(periodStart);
     periodEnd = ProrationService.normalizeToUTCMidnight(periodEnd);
-    
+
     try {
       // Fetch subscription with customer info
       const subscription = await BillingSubscription.findById(subscriptionId)
         .populate('current_plan_id')
         .populate('customer_id', 'name email profile.address');
-      
+
       if (!subscription) {
         throw new Error('Subscription not found');
       }
-      
+
       if (subscription.status !== 'ACTIVE') {
         throw new Error('Can only generate invoices for active subscriptions');
       }
-      
+
       // Generate invoice number
       const invoiceNumber = await BillingInvoice.generateInvoiceNumber();
-      
+
       // Calculate due date as 1 month from period end (aligns with monthly billing cycle)
       const calculatedDueDate = dueDate || (() => {
         const dueDateCalc = new Date(periodEnd);
-        dueDateCalc.setMonth(dueDateCalc.getMonth() + 1);
+        dueDateCalc.setDate(dueDateCalc.getDate() + 30); // 30-day billing cycle
         return dueDateCalc;
       })();
-      
+
       // Create invoice
       const invoice = new BillingInvoice({
         subscription_id: subscription._id,
@@ -369,13 +369,13 @@ class BillingService {
           email: 'billing@broadbandx.com'
         }
       });
-      
+
       await invoice.save();
-      
+
       // Generate line items
       const lineItems = [];
       let lineNumber = 1;
-      
+
       // Base subscription charge
       const subscriptionItem = InvoiceLineItem.createSubscriptionItem(
         invoice._id,
@@ -387,7 +387,7 @@ class BillingService {
       );
       lineItems.push(subscriptionItem);
       await subscriptionItem.save();
-      
+
       // Add pending adjustments if requested
       if (includePendingAdjustments) {
         const pendingAdjustments = await BillingAdjustment.find({
@@ -395,10 +395,10 @@ class BillingService {
           status: 'PENDING',
           effective_date: { $lte: periodEnd }
         });
-        
+
         for (const adjustment of pendingAdjustments) {
           let adjustmentItem;
-          
+
           if (adjustment.reason === 'PLAN_CHANGE_PRORATION' || adjustment.reason === 'CANCELLATION_REFUND') {
             adjustmentItem = InvoiceLineItem.createProrationItem(
               invoice._id,
@@ -412,10 +412,10 @@ class BillingService {
               adjustment
             );
           }
-          
+
           lineItems.push(adjustmentItem);
           await adjustmentItem.save();
-          
+
           // Mark adjustment as applied
           adjustment.status = 'APPLIED';
           adjustment.applied_to_invoice_id = invoice._id;
@@ -423,17 +423,17 @@ class BillingService {
           await adjustment.save();
         }
       }
-      
+
       // Calculate totals
       const totals = await InvoiceLineItem.calculateInvoiceTotals(invoice._id, taxPercentage);
-      
+
       // Update invoice with calculated totals
       invoice.subtotal_cents = totals.subtotal_cents;
       invoice.tax_cents = totals.tax_cents;
       invoice.total_cents = totals.total_cents;
-      
+
       await invoice.save();
-      
+
       return {
         success: true,
         invoice: invoice,
@@ -441,19 +441,19 @@ class BillingService {
         totals: totals,
         subscription: subscription
       };
-      
+
     } catch (error) {
       throw new Error(`Invoice generation failed: ${error.message}`);
     }
   }
-  
+
   /**
    * Process scheduled plan changes (to be run daily)
    * @returns {Object} Processing results
    */
   static async processScheduledPlanChanges() {
     const today = ProrationService.normalizeToUTCMidnight(new Date());
-    
+
     try {
       // Find plan changes scheduled for today
       const scheduledChanges = await SubscriptionPlanHistory.find({
@@ -461,43 +461,43 @@ class BillingService {
         effective_from: today,
         processed: { $ne: true }
       }).populate('subscription_id').populate('new_plan_id');
-      
+
       const results = [];
-      
+
       for (const change of scheduledChanges) {
         try {
           const subscription = change.subscription_id;
           const newPlan = change.new_plan_id;
-          
+
           // Close previous plan history
           await SubscriptionPlanHistory.findOneAndUpdate(
-            { 
+            {
               subscription_id: subscription._id,
               effective_to: null,
               _id: { $ne: change._id }
             },
             { effective_to: change.effective_from }
           );
-          
+
           // Update subscription
           subscription.current_plan_id = newPlan._id;
           subscription.current_plan_name = newPlan.name;
           subscription.monthly_price_cents = newPlan.monthly_price_cents;
           subscription.last_plan_change_date = change.effective_from;
-          
+
           await subscription.save();
-          
+
           // Mark change as processed
           change.processed = true;
           await change.save();
-          
+
           results.push({
             subscription_id: subscription._id,
             old_plan: change.old_plan_id,
             new_plan: newPlan._id,
             status: 'SUCCESS'
           });
-          
+
         } catch (error) {
           results.push({
             subscription_id: change.subscription_id,
@@ -506,58 +506,58 @@ class BillingService {
           });
         }
       }
-      
+
       return {
         success: true,
         processed_count: scheduledChanges.length,
         results: results
       };
-      
+
     } catch (error) {
       throw new Error(`Scheduled plan changes processing failed: ${error.message}`);
     }
   }
-  
+
   /**
    * Process scheduled cancellations (to be run daily)
    * @returns {Object} Processing results
    */
   static async processScheduledCancellations() {
     const today = ProrationService.normalizeToUTCMidnight(new Date());
-    
+
     try {
       // Find subscriptions scheduled for cancellation today
       const subscriptionsToCancel = await BillingSubscription.find({
         status: 'PENDING_CANCELLATION',
         scheduled_cancellation_date: { $lte: today }
       });
-      
+
       const results = [];
-      
+
       for (const subscription of subscriptionsToCancel) {
         try {
           // Close current plan history
           await SubscriptionPlanHistory.findOneAndUpdate(
-            { 
+            {
               subscription_id: subscription._id,
               effective_to: null
             },
             { effective_to: subscription.scheduled_cancellation_date }
           );
-          
+
           // Update subscription status
           subscription.status = 'CANCELLED';
           subscription.cancelled_at = subscription.scheduled_cancellation_date;
           subscription.scheduled_cancellation_date = null;
-          
+
           await subscription.save();
-          
+
           results.push({
             subscription_id: subscription._id,
             cancellation_date: subscription.cancelled_at,
             status: 'SUCCESS'
           });
-          
+
         } catch (error) {
           results.push({
             subscription_id: subscription._id,
@@ -566,13 +566,13 @@ class BillingService {
           });
         }
       }
-      
+
       return {
         success: true,
         processed_count: subscriptionsToCancel.length,
         results: results
       };
-      
+
     } catch (error) {
       throw new Error(`Scheduled cancellations processing failed: ${error.message}`);
     }

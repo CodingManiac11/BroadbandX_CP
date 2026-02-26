@@ -159,7 +159,7 @@ const SubscriptionsPage: React.FC = () => {
     if (billingCycle === 'yearly') {
       end.setFullYear(end.getFullYear() + 1);
     } else {
-      end.setMonth(end.getMonth() + 1);
+      end.setDate(end.getDate() + 30); // 30-day billing period
     }
     return end;
   };

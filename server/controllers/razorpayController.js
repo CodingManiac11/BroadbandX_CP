@@ -174,7 +174,7 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
       // Calculate billing period (1 month from now)
       const billingStart = new Date();
       const billingEnd = new Date(billingStart);
-      billingEnd.setMonth(billingEnd.getMonth() + 1);
+      billingEnd.setDate(billingEnd.getDate() + 30); // 30-day billing period
 
       // Generate invoice number manually
       const date = new Date();
@@ -262,7 +262,7 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
       // Calculate end date based on billing cycle
       const startDate = new Date();
       const endDate = new Date(startDate);
-      endDate.setMonth(endDate.getMonth() + 1); // Add 1 month for monthly billing
+      endDate.setDate(endDate.getDate() + 30); // 30-day monthly billing period
 
       subscription = await Subscription.create({
         user: payment.user,
