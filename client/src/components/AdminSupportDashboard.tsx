@@ -64,6 +64,8 @@ import {
 } from '@mui/icons-material';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import FeedbackManagement from './FeedbackManagement';
+import FeedbackAnalytics from './FeedbackAnalytics';
 
 interface TicketMessage {
     _id: string;
@@ -143,6 +145,7 @@ const AdminSupportDashboard: React.FC = () => {
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState(0);
+    const [mainTab, setMainTab] = useState(0);
 
     const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
@@ -367,17 +370,30 @@ const AdminSupportDashboard: React.FC = () => {
         <Box>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                 <Typography variant="h4" fontWeight="bold" color="primary">
-                    🎫 Support Ticket Management
+                    🎫 Support & Feedback Management
                 </Typography>
-                <Button
-                    variant="outlined"
-                    startIcon={<RefreshIcon />}
-                    onClick={loadTickets}
-                    disabled={loading}
-                >
-                    Refresh
-                </Button>
+                {mainTab === 0 && (
+                    <Button
+                        variant="outlined"
+                        startIcon={<RefreshIcon />}
+                        onClick={loadTickets}
+                        disabled={loading}
+                    >
+                        Refresh
+                    </Button>
+                )}
             </Box>
+
+            {/* Top-level Tabs */}
+            <Tabs
+                value={mainTab}
+                onChange={(_, v) => setMainTab(v)}
+                sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
+            >
+                <Tab label="🎫 Tickets" />
+                <Tab label="⭐ Feedback & Reviews" />
+                <Tab label="📊 Analytics" />
+            </Tabs>
 
             {error && (
                 <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
@@ -385,217 +401,232 @@ const AdminSupportDashboard: React.FC = () => {
                 </Alert>
             )}
 
-            {/* Statistics Cards */}
-            {statistics && (
-                <Grid container spacing={2} mb={3}>
-                    <Grid size={{ xs: 6, sm: 3 }}>
-                        <Card sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
-                            <CardContent>
-                                <Typography variant="h3" fontWeight="bold">{statistics.open}</Typography>
-                                <Typography variant="body2">Open Tickets</Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 3 }}>
-                        <Card sx={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', color: 'white' }}>
-                            <CardContent>
-                                <Typography variant="h3" fontWeight="bold">{statistics.urgent + statistics.high}</Typography>
-                                <Typography variant="body2">High Priority</Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 3 }}>
-                        <Card sx={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', color: 'white' }}>
-                            <CardContent>
-                                <Typography variant="h3" fontWeight="bold">{statistics.inProgress}</Typography>
-                                <Typography variant="body2">In Progress</Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 3 }}>
-                        <Card sx={{ background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', color: 'white' }}>
-                            <CardContent>
-                                <Typography variant="h3" fontWeight="bold">{statistics.resolved}</Typography>
-                                <Typography variant="body2">Resolved</Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                </Grid>
-            )}
+            {/* Tab 0: Tickets */}
+            {mainTab === 0 && (<>
 
-            {/* Filters */}
-            <Card sx={{ mb: 3 }}>
-                <CardContent>
-                    <Grid container spacing={2} alignItems="center">
-                        <Grid size={{ xs: 12, sm: 3 }}>
-                            <TextField
-                                fullWidth
-                                size="small"
-                                placeholder="Search tickets..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                InputProps={{ startAdornment: <SearchIcon color="action" sx={{ mr: 1 }} /> }}
-                            />
-                        </Grid>
-                        <Grid size={{ xs: 6, sm: 2 }}>
-                            <FormControl fullWidth size="small">
-                                <InputLabel>Status</InputLabel>
-                                <Select
-                                    value={statusFilter}
-                                    label="Status"
-                                    onChange={(e) => setStatusFilter(e.target.value)}
-                                >
-                                    <MenuItem value="all">All Status</MenuItem>
-                                    <MenuItem value="open">Open</MenuItem>
-                                    <MenuItem value="assigned">Assigned</MenuItem>
-                                    <MenuItem value="in-progress">In Progress</MenuItem>
-                                    <MenuItem value="pending-customer">Pending Customer</MenuItem>
-                                    <MenuItem value="resolved">Resolved</MenuItem>
-                                    <MenuItem value="closed">Closed</MenuItem>
-                                </Select>
-                            </FormControl>
-                        </Grid>
-                        <Grid size={{ xs: 6, sm: 2 }}>
-                            <FormControl fullWidth size="small">
-                                <InputLabel>Priority</InputLabel>
-                                <Select
-                                    value={priorityFilter}
-                                    label="Priority"
-                                    onChange={(e) => setPriorityFilter(e.target.value)}
-                                >
-                                    <MenuItem value="all">All Priority</MenuItem>
-                                    <MenuItem value="urgent">Urgent</MenuItem>
-                                    <MenuItem value="high">High</MenuItem>
-                                    <MenuItem value="medium">Medium</MenuItem>
-                                    <MenuItem value="low">Low</MenuItem>
-                                </Select>
-                            </FormControl>
-                        </Grid>
-                        <Grid size={{ xs: 6, sm: 2 }}>
-                            <FormControl fullWidth size="small">
-                                <InputLabel>Category</InputLabel>
-                                <Select
-                                    value={categoryFilter}
-                                    label="Category"
-                                    onChange={(e) => setCategoryFilter(e.target.value)}
-                                >
-                                    <MenuItem value="all">All Categories</MenuItem>
-                                    <MenuItem value="technical">🔧 Technical</MenuItem>
-                                    <MenuItem value="billing">💳 Billing</MenuItem>
-                                    <MenuItem value="service">📡 Service</MenuItem>
-                                    <MenuItem value="network">🌐 Network</MenuItem>
-                                    <MenuItem value="account">👤 Account</MenuItem>
-                                    <MenuItem value="general">📋 General</MenuItem>
-                                </Select>
-                            </FormControl>
+                {/* Statistics Cards */}
+                {statistics && (
+                    <Grid container spacing={2} mb={3}>
+                        <Grid size={{ xs: 6, sm: 3 }}>
+                            <Card sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
+                                <CardContent>
+                                    <Typography variant="h3" fontWeight="bold">{statistics.open}</Typography>
+                                    <Typography variant="body2">Open Tickets</Typography>
+                                </CardContent>
+                            </Card>
                         </Grid>
                         <Grid size={{ xs: 6, sm: 3 }}>
-                            <Button
-                                variant="outlined"
-                                onClick={() => {
-                                    setStatusFilter('all');
-                                    setPriorityFilter('all');
-                                    setCategoryFilter('all');
-                                    setSearchQuery('');
-                                }}
-                            >
-                                Clear Filters
-                            </Button>
+                            <Card sx={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', color: 'white' }}>
+                                <CardContent>
+                                    <Typography variant="h3" fontWeight="bold">{statistics.urgent + statistics.high}</Typography>
+                                    <Typography variant="body2">High Priority</Typography>
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                        <Grid size={{ xs: 6, sm: 3 }}>
+                            <Card sx={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', color: 'white' }}>
+                                <CardContent>
+                                    <Typography variant="h3" fontWeight="bold">{statistics.inProgress}</Typography>
+                                    <Typography variant="body2">In Progress</Typography>
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                        <Grid size={{ xs: 6, sm: 3 }}>
+                            <Card sx={{ background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', color: 'white' }}>
+                                <CardContent>
+                                    <Typography variant="h3" fontWeight="bold">{statistics.resolved}</Typography>
+                                    <Typography variant="body2">Resolved</Typography>
+                                </CardContent>
+                            </Card>
                         </Grid>
                     </Grid>
-                </CardContent>
-            </Card>
+                )}
 
-            {/* Tickets Table */}
-            <Card>
-                <CardContent>
-                    {loading ? (
-                        <Box display="flex" justifyContent="center" py={4}>
-                            <CircularProgress />
-                        </Box>
-                    ) : tickets.length === 0 ? (
-                        <Alert severity="info">No tickets found matching your filters.</Alert>
-                    ) : (
-                        <TableContainer>
-                            <Table>
-                                <TableHead>
-                                    <TableRow sx={{ bgcolor: 'grey.100' }}>
-                                        <TableCell><strong>Ticket #</strong></TableCell>
-                                        <TableCell><strong>Customer</strong></TableCell>
-                                        <TableCell><strong>Subject</strong></TableCell>
-                                        <TableCell><strong>Category</strong></TableCell>
-                                        <TableCell><strong>Status</strong></TableCell>
-                                        <TableCell><strong>Priority</strong></TableCell>
-                                        <TableCell><strong>Assigned To</strong></TableCell>
-                                        <TableCell><strong>Created</strong></TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {tickets.map((ticket) => (
-                                        <TableRow
-                                            key={ticket._id}
-                                            hover
-                                            sx={{ cursor: 'pointer' }}
-                                            onClick={() => loadTicketDetails(ticket._id)}
-                                        >
-                                            <TableCell>
-                                                <Typography variant="body2" fontWeight="bold" color="primary">
-                                                    {ticket.ticketNumber}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Typography variant="body2">{ticket.customerName}</Typography>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    {ticket.customerEmail}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Typography
-                                                    variant="body2"
-                                                    sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                                                >
-                                                    {ticket.subject}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Chip
-                                                    label={`${getCategoryIcon(ticket.category)} ${ticket.category}`}
-                                                    size="small"
-                                                    variant="outlined"
-                                                />
-                                            </TableCell>
-                                            <TableCell>
-                                                <Chip
-                                                    label={getStatusInfo(ticket.status).label}
-                                                    color={getStatusInfo(ticket.status).color}
-                                                    size="small"
-                                                />
-                                            </TableCell>
-                                            <TableCell>
-                                                <Chip
-                                                    label={ticket.priority}
-                                                    color={getPriorityColor(ticket.priority)}
-                                                    size="small"
-                                                />
-                                            </TableCell>
-                                            <TableCell>
-                                                {ticket.assignedToName || (
-                                                    <Typography variant="caption" color="text.secondary">Unassigned</Typography>
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Typography variant="caption">
-                                                    {new Date(ticket.createdAt).toLocaleDateString()}
-                                                </Typography>
-                                            </TableCell>
+                {/* Filters */}
+                <Card sx={{ mb: 3 }}>
+                    <CardContent>
+                        <Grid container spacing={2} alignItems="center">
+                            <Grid size={{ xs: 12, sm: 3 }}>
+                                <TextField
+                                    fullWidth
+                                    size="small"
+                                    placeholder="Search tickets..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    InputProps={{ startAdornment: <SearchIcon color="action" sx={{ mr: 1 }} /> }}
+                                />
+                            </Grid>
+                            <Grid size={{ xs: 6, sm: 2 }}>
+                                <FormControl fullWidth size="small">
+                                    <InputLabel>Status</InputLabel>
+                                    <Select
+                                        value={statusFilter}
+                                        label="Status"
+                                        onChange={(e) => setStatusFilter(e.target.value)}
+                                    >
+                                        <MenuItem value="all">All Status</MenuItem>
+                                        <MenuItem value="open">Open</MenuItem>
+                                        <MenuItem value="assigned">Assigned</MenuItem>
+                                        <MenuItem value="in-progress">In Progress</MenuItem>
+                                        <MenuItem value="pending-customer">Pending Customer</MenuItem>
+                                        <MenuItem value="resolved">Resolved</MenuItem>
+                                        <MenuItem value="closed">Closed</MenuItem>
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+                            <Grid size={{ xs: 6, sm: 2 }}>
+                                <FormControl fullWidth size="small">
+                                    <InputLabel>Priority</InputLabel>
+                                    <Select
+                                        value={priorityFilter}
+                                        label="Priority"
+                                        onChange={(e) => setPriorityFilter(e.target.value)}
+                                    >
+                                        <MenuItem value="all">All Priority</MenuItem>
+                                        <MenuItem value="urgent">Urgent</MenuItem>
+                                        <MenuItem value="high">High</MenuItem>
+                                        <MenuItem value="medium">Medium</MenuItem>
+                                        <MenuItem value="low">Low</MenuItem>
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+                            <Grid size={{ xs: 6, sm: 2 }}>
+                                <FormControl fullWidth size="small">
+                                    <InputLabel>Category</InputLabel>
+                                    <Select
+                                        value={categoryFilter}
+                                        label="Category"
+                                        onChange={(e) => setCategoryFilter(e.target.value)}
+                                    >
+                                        <MenuItem value="all">All Categories</MenuItem>
+                                        <MenuItem value="technical">🔧 Technical</MenuItem>
+                                        <MenuItem value="billing">💳 Billing</MenuItem>
+                                        <MenuItem value="service">📡 Service</MenuItem>
+                                        <MenuItem value="network">🌐 Network</MenuItem>
+                                        <MenuItem value="account">👤 Account</MenuItem>
+                                        <MenuItem value="general">📋 General</MenuItem>
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+                            <Grid size={{ xs: 6, sm: 3 }}>
+                                <Button
+                                    variant="outlined"
+                                    onClick={() => {
+                                        setStatusFilter('all');
+                                        setPriorityFilter('all');
+                                        setCategoryFilter('all');
+                                        setSearchQuery('');
+                                    }}
+                                >
+                                    Clear Filters
+                                </Button>
+                            </Grid>
+                        </Grid>
+                    </CardContent>
+                </Card>
+
+                {/* Tickets Table */}
+                <Card>
+                    <CardContent>
+                        {loading ? (
+                            <Box display="flex" justifyContent="center" py={4}>
+                                <CircularProgress />
+                            </Box>
+                        ) : tickets.length === 0 ? (
+                            <Alert severity="info">No tickets found matching your filters.</Alert>
+                        ) : (
+                            <TableContainer>
+                                <Table>
+                                    <TableHead>
+                                        <TableRow sx={{ bgcolor: 'grey.100' }}>
+                                            <TableCell><strong>Ticket #</strong></TableCell>
+                                            <TableCell><strong>Customer</strong></TableCell>
+                                            <TableCell><strong>Subject</strong></TableCell>
+                                            <TableCell><strong>Category</strong></TableCell>
+                                            <TableCell><strong>Status</strong></TableCell>
+                                            <TableCell><strong>Priority</strong></TableCell>
+                                            <TableCell><strong>Assigned To</strong></TableCell>
+                                            <TableCell><strong>Created</strong></TableCell>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                    )}
-                </CardContent>
-            </Card>
+                                    </TableHead>
+                                    <TableBody>
+                                        {tickets.map((ticket) => (
+                                            <TableRow
+                                                key={ticket._id}
+                                                hover
+                                                sx={{ cursor: 'pointer' }}
+                                                onClick={() => loadTicketDetails(ticket._id)}
+                                            >
+                                                <TableCell>
+                                                    <Typography variant="body2" fontWeight="bold" color="primary">
+                                                        {ticket.ticketNumber}
+                                                    </Typography>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Typography variant="body2">{ticket.customerName}</Typography>
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {ticket.customerEmail}
+                                                    </Typography>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Typography
+                                                        variant="body2"
+                                                        sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                                    >
+                                                        {ticket.subject}
+                                                    </Typography>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip
+                                                        label={`${getCategoryIcon(ticket.category)} ${ticket.category}`}
+                                                        size="small"
+                                                        variant="outlined"
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip
+                                                        label={getStatusInfo(ticket.status).label}
+                                                        color={getStatusInfo(ticket.status).color}
+                                                        size="small"
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip
+                                                        label={ticket.priority}
+                                                        color={getPriorityColor(ticket.priority)}
+                                                        size="small"
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    {ticket.assignedToName || (
+                                                        <Typography variant="caption" color="text.secondary">Unassigned</Typography>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Typography variant="caption">
+                                                        {new Date(ticket.createdAt).toLocaleDateString()}
+                                                    </Typography>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        )}
+                    </CardContent>
+                </Card>
+
+            </>)}
+
+            {/* Tab 1: Feedback & Reviews */}
+            {mainTab === 1 && (
+                <FeedbackManagement />
+            )}
+
+            {/* Tab 2: Analytics */}
+            {mainTab === 2 && (
+                <FeedbackAnalytics />
+            )}
 
             {/* Ticket Detail Dialog */}
             <Dialog

@@ -14,9 +14,9 @@ interface FeedbackFormProps {
   type?: 'service' | 'support' | 'billing' | 'general';
 }
 
-const FeedbackForm: React.FC<FeedbackFormProps> = ({ 
-  onSubmitSuccess, 
-  type = 'general' 
+const FeedbackForm: React.FC<FeedbackFormProps> = ({
+  onSubmitSuccess,
+  type = 'general'
 }) => {
   const [ratings, setRatings] = useState<Record<string, number>>({
     overall: 0,
@@ -53,10 +53,11 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
-      
+      const token = localStorage.getItem('access_token');
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+
       await axios.post(
-        '/api/feedback',
+        `${API_URL}/feedback`,
         {
           type,
           rating: ratings,
@@ -104,9 +105,8 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({
           type="button"
           whileHover={{ scale: 1.1 }}
           onClick={() => onChange(star)}
-          className={`focus:outline-none ${
-            star <= value ? 'text-yellow-400' : 'text-gray-300'
-          }`}
+          className={`focus:outline-none ${star <= value ? 'text-yellow-400' : 'text-gray-300'
+            }`}
         >
           <Star
             size={size}
@@ -120,7 +120,7 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow">
       <h2 className="text-2xl font-bold mb-6">Share Your Feedback</h2>
-      
+
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Rating Categories */}
         <div className="space-y-4">
@@ -206,9 +206,8 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({
         <button
           type="submit"
           disabled={loading || !ratings.overall}
-          className={`w-full flex items-center justify-center space-x-2 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed ${
-            loading ? 'cursor-wait' : ''
-          }`}
+          className={`w-full flex items-center justify-center space-x-2 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed ${loading ? 'cursor-wait' : ''
+            }`}
         >
           <Send size={20} />
           <span>{loading ? 'Submitting...' : 'Submit Feedback'}</span>

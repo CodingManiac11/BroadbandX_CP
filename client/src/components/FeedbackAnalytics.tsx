@@ -54,7 +54,7 @@ const FeedbackAnalytics: React.FC = () => {
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('access_token');
       const response = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/feedback/stats?timeframe=${timeframe}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -88,7 +88,7 @@ const FeedbackAnalytics: React.FC = () => {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Feedback Analytics</h1>
-        
+
         <select
           value={timeframe}
           onChange={(e) => setTimeframe(e.target.value)}

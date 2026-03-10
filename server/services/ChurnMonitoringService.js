@@ -136,15 +136,19 @@ class ChurnMonitoringService {
         console.log(`⏰ Time: ${new Date().toLocaleString()}`);
 
         try {
-            // Get all active subscriptions with user data
+            // Get all active subscriptions with user data (include npsScore for correct risk calc)
             const subscriptions = await Subscription.find({
                 status: { $in: ['active', 'trialing'] }
-            }).populate('user', 'firstName lastName email lastLogin createdAt');
+            }).populate('user', 'firstName lastName email lastLogin npsScore createdAt');
 
             if (!subscriptions || subscriptions.length === 0) {
                 console.log('⚠️ No active subscriptions found');
                 return { highRisk: 0, mediumRisk: 0, lowRisk: 0, total: 0 };
             }
+
+            // Load SupportTicket model for ticket counting
+            let SupportTicket = null;
+            try { SupportTicket = require('../models/SupportTicket'); } catch (e) { }
 
             let highRiskCount = 0;
             let mediumRiskCount = 0;
@@ -163,23 +167,39 @@ class ChurnMonitoringService {
                 const contractStart = subscription.startDate || subscription.createdAt;
                 const contractAge = Math.floor((Date.now() - new Date(contractStart)) / (1000 * 60 * 60 * 24 * 30));
 
-                // Get usage analytics if available
-                let usageChange = 0;
-                let supportTickets = 0;
-                let npsScore = 7;
+                // NPS Score from User model (correct source, not UsageAnalytics)
+                const npsScore = user.npsScore !== undefined ? user.npsScore : 7;
 
-                try {
-                    const analytics = await UsageAnalytics.findOne({ user: user._id }).sort({ updatedAt: -1 });
-                    if (analytics) {
-                        usageChange = analytics.usageChange30d || 0;
-                        supportTickets = analytics.supportTickets || 0;
-                        npsScore = analytics.npsScore || 7;
-                    }
-                } catch (err) {
-                    // Use defaults if analytics not available
+                // Support tickets from SupportTicket collection (not UsageAnalytics)
+                let supportTickets = 0;
+                if (SupportTicket) {
+                    try {
+                        supportTickets = await SupportTicket.countDocuments({
+                            customer: user._id,
+                            status: { $in: ['open', 'pending'] }
+                        });
+                    } catch (err) { }
                 }
 
-                // Get payment failures (simplified - check subscription status)
+                // Usage change from raw monthly UsageAnalytics data comparison
+                let usageChange = 0;
+                try {
+                    const currentMonth = new Date();
+                    currentMonth.setDate(1);
+                    const prevMonth = new Date(currentMonth);
+                    prevMonth.setMonth(prevMonth.getMonth() - 1);
+
+                    const [currentUsage, prevUsage] = await Promise.all([
+                        UsageAnalytics.findOne({ user: user._id, date: { $gte: currentMonth } }),
+                        UsageAnalytics.findOne({ user: user._id, date: { $gte: prevMonth, $lt: currentMonth } })
+                    ]);
+
+                    if (currentUsage?.metrics?.dataUsed && prevUsage?.metrics?.dataUsed > 0) {
+                        usageChange = Math.round(((currentUsage.metrics.dataUsed - prevUsage.metrics.dataUsed) / prevUsage.metrics.dataUsed) * 100);
+                    }
+                } catch (err) { }
+
+                // Get payment failures
                 const paymentFailures = subscription.paymentFailures || 0;
 
                 // Calculate churn risk

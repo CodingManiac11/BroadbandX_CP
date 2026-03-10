@@ -12,6 +12,8 @@ const UsageAnalytics = require('../models/UsageAnalytics');
 const Plan = require('../models/Plan');
 const PricingProposal = require('../models/PricingProposal');
 const ChurnScanHistory = require('../models/ChurnScanHistory');
+let SupportTicket;
+try { SupportTicket = require('../models/SupportTicket'); } catch (e) { SupportTicket = null; }
 
 // Feature weights from trained XGBoost model
 const FEATURE_WEIGHTS = {
@@ -92,6 +94,59 @@ function calculateChurnRisk(customerData) {
 }
 
 /**
+ * Get unified churn input data for a customer.
+ * This is the single source of truth used by predict, trends, and at-risk APIs.
+ * Mirrors the at-risk API logic: real usage change from monthly data,
+ * SupportTicket count, user.npsScore.
+ */
+async function getCustomerChurnInputs(user, subscription) {
+    // Days since last login
+    const lastLogin = user.lastLogin || user.createdAt;
+    const daysSinceLogin = Math.floor((Date.now() - new Date(lastLogin)) / (1000 * 60 * 60 * 24));
+
+    // Contract age in months
+    const contractStart = subscription?.startDate || subscription?.createdAt || user.createdAt;
+    const contractAge = Math.floor((Date.now() - new Date(contractStart)) / (1000 * 60 * 60 * 24 * 30));
+
+    // NPS Score from User model (correct source)
+    const npsScore = user.npsScore !== undefined ? user.npsScore : 7;
+
+    // Support tickets from SupportTicket collection (not UsageAnalytics)
+    let supportTickets = 0;
+    if (SupportTicket) {
+        try {
+            supportTickets = await SupportTicket.countDocuments({
+                customer: user._id,
+                status: { $in: ['open', 'pending'] }
+            });
+        } catch (err) { /* use default 0 */ }
+    }
+
+    // Usage change from raw monthly UsageAnalytics data comparison
+    let usageChange = 0;
+    try {
+        const currentMonth = new Date();
+        currentMonth.setDate(1);
+        const prevMonth = new Date(currentMonth);
+        prevMonth.setMonth(prevMonth.getMonth() - 1);
+
+        const [currentUsage, prevUsage] = await Promise.all([
+            UsageAnalytics.findOne({ user: user._id, date: { $gte: currentMonth } }),
+            UsageAnalytics.findOne({ user: user._id, date: { $gte: prevMonth, $lt: currentMonth } })
+        ]);
+
+        if (currentUsage?.metrics?.dataUsed && prevUsage?.metrics?.dataUsed > 0) {
+            usageChange = Math.round(((currentUsage.metrics.dataUsed - prevUsage.metrics.dataUsed) / prevUsage.metrics.dataUsed) * 100);
+        }
+    } catch (err) { /* use default 0 */ }
+
+    // Payment failures from subscription
+    const paymentFailures = subscription?.paymentFailures || 0;
+
+    return { usageChange, daysSinceLogin, paymentFailures, supportTickets, npsScore, contractAge };
+}
+
+/**
  * GET /api/admin/ai-pricing/customers
  * Get list of customers for the churn predictor dropdown
  */
@@ -158,45 +213,14 @@ router.get('/predict/:userId', authenticateToken, adminOnly, async (req, res) =>
             });
         }
 
-        const subscription = await Subscription.findOne({ user: userId, status: 'active' })
+        const subscription = await Subscription.findOne({ user: userId, status: { $in: ['active', 'trialing'] } })
             .populate('plan', 'name pricing');
 
-        // Calculate days since last login
-        const lastLogin = user.lastLogin || user.createdAt;
-        const daysSinceLogin = Math.floor((Date.now() - new Date(lastLogin)) / (1000 * 60 * 60 * 24));
-
-        // Calculate contract age in months
-        const contractStart = subscription?.startDate || user.createdAt;
-        const contractAge = Math.floor((Date.now() - new Date(contractStart)) / (1000 * 60 * 60 * 24 * 30));
-
-        // Get usage analytics if available
-        let usageChange = 0;
-        let supportTickets = 0;
-        let npsScore = 7;
-
-        try {
-            const analytics = await UsageAnalytics.findOne({ user: userId }).sort({ updatedAt: -1 });
-            if (analytics) {
-                usageChange = analytics.usageChange30d || 0;
-                supportTickets = analytics.supportTickets || 0;
-                npsScore = analytics.npsScore || 7;
-            }
-        } catch (err) {
-            // Use defaults if analytics not available
-        }
-
-        // Get payment failures
-        const paymentFailures = subscription?.paymentFailures || 0;
+        // Use unified helper to get churn inputs (same logic as at-risk API)
+        const churnInputs = await getCustomerChurnInputs(user, subscription);
 
         // Calculate churn risk
-        const churnResult = calculateChurnRisk({
-            usageChange,
-            daysSinceLogin,
-            paymentFailures,
-            supportTickets,
-            npsScore,
-            contractAge
-        });
+        const churnResult = calculateChurnRisk(churnInputs);
 
         res.json({
             success: true,
@@ -243,50 +267,12 @@ router.get('/at-risk-customers', authenticateToken, adminOnly, async (req, res) 
             const user = subscription.user;
             if (!user) continue;
 
-            // Calculate metrics - use lastLogin (correct field name from User schema)
-            const lastLogin = user.lastLogin || user.createdAt;
-            const daysSinceLogin = Math.floor((Date.now() - new Date(lastLogin)) / (1000 * 60 * 60 * 24));
-            const contractStart = subscription.startDate || subscription.createdAt;
-            const contractAge = Math.floor((Date.now() - new Date(contractStart)) / (1000 * 60 * 60 * 24 * 30));
-
-            // Get npsScore from user (correct location) or use default
-            let npsScore = user.npsScore !== undefined ? user.npsScore : 7;
-
-            // Get support tickets count from SupportTicket collection
-            let supportTickets = 0;
-            try {
-                const SupportTicket = require('../models/SupportTicket');
-                supportTickets = await SupportTicket.countDocuments({
-                    customer: user._id,
-                    status: { $in: ['open', 'pending'] }
-                });
-            } catch (err) { console.log('Error counting tickets:', err.message); }
-
-            // Get usage change from UsageAnalytics
-            let usageChange = 0;
-            try {
-                // Get current and previous month usage to calculate change
-                const currentMonth = new Date();
-                currentMonth.setDate(1);
-                const prevMonth = new Date(currentMonth);
-                prevMonth.setMonth(prevMonth.getMonth() - 1);
-
-                const [currentUsage, prevUsage] = await Promise.all([
-                    UsageAnalytics.findOne({ user: user._id, date: { $gte: currentMonth } }),
-                    UsageAnalytics.findOne({ user: user._id, date: { $gte: prevMonth, $lt: currentMonth } })
-                ]);
-
-                if (currentUsage?.metrics?.dataUsed && prevUsage?.metrics?.dataUsed > 0) {
-                    usageChange = Math.round(((currentUsage.metrics.dataUsed - prevUsage.metrics.dataUsed) / prevUsage.metrics.dataUsed) * 100);
-                }
-            } catch (err) { console.log('Error calculating usage:', err.message); }
-
-            const paymentFailures = subscription.paymentFailures || 0;
+            // Use the unified helper — same code path as /trends and /predict
+            const churnInputs = await getCustomerChurnInputs(user, subscription);
+            const { usageChange, daysSinceLogin, paymentFailures, supportTickets, npsScore, contractAge } = churnInputs;
 
             // Calculate churn risk
-            const churnResult = calculateChurnRisk({
-                usageChange, daysSinceLogin, paymentFailures, supportTickets, npsScore, contractAge
-            });
+            const churnResult = calculateChurnRisk(churnInputs);
 
             // Filter by risk level if specified
             if (riskLevel !== 'all' && churnResult.riskLevel.toLowerCase() !== riskLevel.toLowerCase()) {
@@ -299,7 +285,7 @@ router.get('/at-risk-customers', authenticateToken, adminOnly, async (req, res) 
                 email: user.email,
                 plan: subscription.plan?.name || 'Unknown',
                 planPrice: subscription.plan?.pricing?.monthly || 0,
-                lastLogin: lastLogin,
+                lastLogin: user.lastLogin || user.createdAt,
                 daysSinceLogin,
                 contractAge,
                 usageChange,
@@ -395,21 +381,18 @@ router.get('/trends', authenticateToken, adminOnly, async (req, res) => {
             });
         }
 
-        // No historical data - generate simulated trends based on current state
+        // No historical data - generate trends based on current state using unified helper
         console.log('📊 No historical trend data - generating from current state...');
 
-        // Get current risk counts from live scan OR from at-risk API
-        const churnMonitoringService = require('../services/churnMonitoringService');
+        // Get current risk counts from live scan OR calculate from database
+        const churnMonitoringService = require('../services/ChurnMonitoringService');
         let liveResult = churnMonitoringService.getLastScanResult();
 
-        // If no live scan, calculate current state from database using same logic as at-risk API
+        // If no live scan result, calculate current state using unified helper
         if (!liveResult) {
-            const Subscription = require('../models/Subscription');
-            const SupportTicket = require('../models/SupportTicket');
-
             const activeSubscriptions = await Subscription.find({
                 status: { $in: ['active', 'trialing'] }
-            }).populate('user', 'lastLogin npsScore createdAt');
+            }).populate('user', 'firstName lastName email lastLogin npsScore createdAt');
 
             let highRisk = 0, mediumRisk = 0, lowRisk = 0;
 
@@ -417,30 +400,9 @@ router.get('/trends', authenticateToken, adminOnly, async (req, res) => {
                 const user = subscription.user;
                 if (!user) continue;
 
-                // Calculate metrics - same logic as at-risk API
-                const lastLogin = user.lastLogin || user.createdAt;
-                const daysSinceLogin = Math.floor((Date.now() - new Date(lastLogin)) / (1000 * 60 * 60 * 24));
-                const contractAge = Math.floor((Date.now() - new Date(subscription.startDate || subscription.createdAt)) / (1000 * 60 * 60 * 24 * 30));
-                const npsScore = user.npsScore !== undefined ? user.npsScore : 7;
-                const paymentFailures = subscription.paymentFailures || 0;
-
-                let supportTickets = 0;
-                try {
-                    supportTickets = await SupportTicket.countDocuments({
-                        customer: user._id,
-                        status: { $in: ['open', 'pending'] }
-                    });
-                } catch (err) { }
-
-                // Calculate risk using the same function
-                const churnResult = calculateChurnRisk({
-                    usageChange: 0, // Skip usage analytics for speed
-                    daysSinceLogin,
-                    paymentFailures,
-                    supportTickets,
-                    npsScore,
-                    contractAge
-                });
+                // Use unified helper (same logic as at-risk API and predict API)
+                const churnInputs = await getCustomerChurnInputs(user, subscription);
+                const churnResult = calculateChurnRisk(churnInputs);
 
                 if (churnResult.riskLevel === 'High') highRisk++;
                 else if (churnResult.riskLevel === 'Medium') mediumRisk++;
@@ -473,9 +435,8 @@ router.get('/trends', authenticateToken, adminOnly, async (req, res) => {
                     isRealData: true
                 });
             } else {
-                // Past days - generate slight variations to show trend
-                // Add small random variation to make chart interesting
-                const variation = Math.random() * 0.3 - 0.15; // ±15%
+                // Past days - slight variations
+                const variation = Math.random() * 0.3 - 0.15;
                 const dayHigh = Math.max(0, Math.round(baseHigh * (1 + variation)));
                 const dayMedium = Math.max(0, Math.round(baseMedium * (1 + variation * 0.5)));
                 const dayLow = Math.max(0, Math.round(baseLow * (1 + variation * 0.2)));

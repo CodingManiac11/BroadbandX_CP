@@ -51,12 +51,14 @@ import {
   Add,
   Notifications as NotificationsIcon,
   Download as DownloadIcon,
-  Person as PersonIcon
+  Person as PersonIcon,
+  RateReview as FeedbackIcon
 } from '@mui/icons-material';
 import { BillingDashboard } from '../components/billing';
 import SupportCenter from '../components/SupportCenter';
 import AccountSettingsSimple from '../components/AccountSettingsSimple';
 import UsageTracking from '../components/UsageTracking';
+import FeedbackForm from '../components/FeedbackForm';
 import BillingReminders from '../components/BillingReminders';
 import { useAuth } from '../contexts/AuthContext';
 import { useRealtime } from '../contexts/RealtimeContext';
@@ -549,6 +551,7 @@ const CustomerDashboard: React.FC = () => {
     { text: 'Speed Test', icon: <SpeedIcon />, value: 'speedtest' },
     { text: 'Billing', icon: <BillingIcon />, value: 'billing' },
     { text: 'Support', icon: <Support />, value: 'support' },
+    { text: 'Feedback', icon: <FeedbackIcon />, value: 'feedback' },
     { text: 'My Profile', icon: <PersonIcon />, value: 'profile' },
     { text: 'Settings', icon: <SettingsIcon />, value: 'settings' },
   ];
@@ -855,6 +858,8 @@ const CustomerDashboard: React.FC = () => {
         return <SpeedTest />;
       case 'support':
         return <SupportCenter />;
+      case 'feedback':
+        return <FeedbackForm />;
       case 'profile':
         return <ProfilePage />;
       case 'settings':

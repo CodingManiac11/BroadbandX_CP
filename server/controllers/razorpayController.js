@@ -343,6 +343,14 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
       await subscription.save();
     }
 
+    // Reset payment failures on successful payment (customer recovered)
+    if (subscription) {
+      await Subscription.findByIdAndUpdate(subscription._id, {
+        paymentFailures: 0
+      });
+      console.log(`✅ Reset paymentFailures to 0 for subscription ${subscription._id}`);
+    }
+
     // Send welcome email after successful payment (for all subscriptions)
     try {
       const emailService = require('../services/emailService');
@@ -404,6 +412,14 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
       payment.errorReason = 'Signature verification failed';
       payment.failedAt = new Date();
       await payment.save();
+
+      // Increment payment failures on the subscription for churn tracking
+      if (payment.subscription) {
+        await Subscription.findByIdAndUpdate(payment.subscription, {
+          $inc: { paymentFailures: 1 }
+        });
+        console.log(`⚠️ Incremented paymentFailures for subscription ${payment.subscription}`);
+      }
     }
 
     res.status(400).json({
@@ -528,6 +544,19 @@ exports.handleWebhook = asyncHandler(async (req, res) => {
           failedAt: new Date(payload.created_at * 1000)
         }
       );
+
+      // Increment payment failures on the subscription for churn tracking
+      try {
+        const failedPayment = await Payment.findOne({ razorpayOrderId: payload.order_id });
+        if (failedPayment && failedPayment.subscription) {
+          await Subscription.findByIdAndUpdate(failedPayment.subscription, {
+            $inc: { paymentFailures: 1 }
+          });
+          console.log(`⚠️ Webhook: Incremented paymentFailures for subscription ${failedPayment.subscription}`);
+        }
+      } catch (err) {
+        console.error('Failed to increment paymentFailures:', err.message);
+      }
       break;
 
     case 'refund.created':

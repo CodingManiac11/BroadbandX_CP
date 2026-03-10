@@ -7,7 +7,7 @@ import { User, Subscription, DashboardStats } from '../types/index';
 import StatCard from '../components/StatCard';
 import UserManagementContainer from '../components/UserManagementContainer';
 import SubscriptionsPage from './SubscriptionsPage';
-import FeedbackManagement from '../components/FeedbackManagement';
+// FeedbackManagement is now embedded inside AdminSupportDashboard as a tab
 import AIPricingDashboard from '../components/AIPricingDashboard';
 import AdminSupportDashboard from '../components/AdminSupportDashboard';
 
@@ -1179,6 +1179,7 @@ const AdminDashboard: React.FC = () => {
         return <AdminSupportDashboard />;
       case 'ai-pricing':
         return <AIPricingDashboard />;
+
       default:
         return renderDashboard();
     }

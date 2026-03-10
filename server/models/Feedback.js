@@ -51,7 +51,7 @@ const FeedbackSchema = new mongoose.Schema({
   sentiment: {
     type: String,
     enum: ['positive', 'neutral', 'negative'],
-    required: true
+    default: 'neutral'
   },
   status: {
     type: String,
@@ -97,7 +97,7 @@ FeedbackSchema.index({ type: 1, status: 1 });
 FeedbackSchema.index({ sentiment: 1, createdAt: -1 });
 
 // Pre-save middleware to analyze sentiment
-FeedbackSchema.pre('save', function(next) {
+FeedbackSchema.pre('save', function (next) {
   if (this.isModified('comment') || this.isNew) {
     // Simple sentiment analysis based on rating
     if (this.rating.overall >= 4) {
@@ -112,7 +112,7 @@ FeedbackSchema.pre('save', function(next) {
 });
 
 // Static method to get average ratings
-FeedbackSchema.statics.getAverageRatings = async function() {
+FeedbackSchema.statics.getAverageRatings = async function () {
   const averages = await this.aggregate([
     {
       $group: {
@@ -130,7 +130,7 @@ FeedbackSchema.statics.getAverageRatings = async function() {
 };
 
 // Method to check if feedback needs attention
-FeedbackSchema.methods.needsAttention = function() {
+FeedbackSchema.methods.needsAttention = function () {
   return (
     this.status === 'pending' &&
     (this.sentiment === 'negative' || this.rating.overall <= 2)

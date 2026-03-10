@@ -331,10 +331,8 @@ const AIPricingDashboard: React.FC = () => {
                 setDialogType('scan');
                 setDialogData(result);
                 setDialogOpen(true);
-                // Refresh the at-risk customers
-                const riskData = await aiPricingService.fetchAtRiskCustomers();
-                setAtRiskCustomers(riskData.customers);
-                setRiskSummary(riskData.summary);
+                // Refresh ALL dashboard data (trends + at-risk + metrics) for real-time sync
+                await loadData();
             }
         } catch (error) {
             setSnackbar({ open: true, message: 'Scan failed', severity: 'error' });

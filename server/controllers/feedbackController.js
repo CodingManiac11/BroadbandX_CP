@@ -17,13 +17,31 @@ exports.submitFeedback = asyncHandler(async (req, res) => {
       user: req.user.id,
       status: 'active'
     }).sort('-createdAt');
-    
+
     if (activeSubscription) {
       req.body.subscription = activeSubscription._id;
     }
   }
 
   const feedback = await Feedback.create(req.body);
+
+  // Auto-update user's NPS score based on their average feedback rating
+  // Maps 1-5 rating scale → 0-10 NPS scale: npsScore = (avgRating - 1) * 2.5
+  try {
+    const avgResult = await Feedback.aggregate([
+      { $match: { user: req.user._id || new (require('mongoose').Types.ObjectId)(req.user.id) } },
+      { $group: { _id: null, avgRating: { $avg: '$rating.overall' } } }
+    ]);
+
+    if (avgResult.length > 0 && avgResult[0].avgRating) {
+      const npsScore = Math.round((avgResult[0].avgRating - 1) * 2.5);
+      await User.findByIdAndUpdate(req.user.id, { npsScore });
+      console.log(`📊 Updated NPS score for user ${req.user.id}: ${npsScore} (avg rating: ${avgResult[0].avgRating.toFixed(1)})`);
+    }
+  } catch (npsError) {
+    console.error('Failed to update NPS score:', npsError.message);
+    // Don't fail the feedback submission
+  }
 
   // If feedback indicates issues, notify support team
   if (feedback.needsAttention()) {
@@ -61,7 +79,7 @@ exports.getPublicFeedback = asyncHandler(async (req, res) => {
   const startIndex = (page - 1) * limit;
 
   const query = { isPublic: true };
-  
+
   if (req.query.type) {
     query.type = req.query.type;
   }
@@ -99,7 +117,7 @@ exports.getPublicFeedback = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 exports.getFeedbackStats = asyncHandler(async (req, res) => {
   const timeframe = req.query.timeframe || '30d'; // Default to last 30 days
-  
+
   let startDate = new Date();
   switch (timeframe) {
     case '7d':
@@ -278,7 +296,7 @@ exports.getAllFeedback = asyncHandler(async (req, res) => {
 
   // Build query
   const query = {};
-  
+
   if (req.query.type) {
     query.type = req.query.type;
   }
