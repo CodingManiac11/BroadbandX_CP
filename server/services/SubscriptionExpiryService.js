@@ -75,38 +75,48 @@ class SubscriptionExpiryService {
             for (const sub of expiredSubs) {
                 try {
                     if (sub.autoRenewal && sub.autoRenewal.enabled) {
-                        // Auto-renew: extend endDate by 30 days
+                        // Auto-renew: extend endDate by exactly 30 days (or 1 year for yearly)
                         const newEndDate = new Date(sub.endDate);
-                        newEndDate.setDate(newEndDate.getDate() + 30);
-
-                        sub.endDate = newEndDate;
-                        sub.autoRenewal.nextRenewalDate = newEndDate;
-
-                        // Add payment record
-                        sub.paymentHistory.push({
-                            date: new Date(),
-                            amount: sub.pricing.totalAmount || sub.pricing.basePrice,
-                            paymentMethod: 'auto-renewal',
-                            status: 'completed',
-                            invoiceNumber: `INV-AR-${Date.now()}`
-                        });
-
-                        await sub.save();
-
-                        // Add service history
-                        try {
-                            await sub.addServiceHistory(
-                                'renewed',
-                                'Subscription auto-renewed',
-                                sub.user._id,
-                                { newEndDate: newEndDate.toISOString() }
-                            );
-                        } catch (histErr) {
-                            console.log('  ⚠️ Could not add service history:', histErr.message);
+                        if (sub.billingCycle === 'yearly') {
+                            newEndDate.setFullYear(newEndDate.getFullYear() + 1);
+                        } else {
+                            newEndDate.setDate(newEndDate.getDate() + 30); // 30-day billing cycle
                         }
 
-                        renewed++;
-                        console.log(`  ✅ Auto-renewed: ${sub.user?.firstName} ${sub.user?.lastName} → ${newEndDate.toDateString()}`);
+                        // Guard: only renew if the new endDate is actually in the future
+                        // (prevents double-renewal on server restarts)
+                        if (newEndDate <= now) {
+                            console.log(`  ⚠️ Skipping renewal for ${sub.user?.firstName} — computed newEndDate ${newEndDate.toDateString()} is still in the past. Manual review needed.`);
+                        } else {
+                            sub.endDate = newEndDate;
+                            sub.autoRenewal.nextRenewalDate = newEndDate;
+
+                            // Add payment record
+                            sub.paymentHistory.push({
+                                date: new Date(),
+                                amount: sub.pricing.totalAmount || sub.pricing.basePrice,
+                                paymentMethod: 'auto-renewal',
+                                status: 'completed',
+                                invoiceNumber: `INV-AR-${Date.now()}`
+                            });
+
+                            await sub.save();
+
+                            // Add service history
+                            try {
+                                await sub.addServiceHistory(
+                                    'renewed',
+                                    'Subscription auto-renewed',
+                                    sub.user._id,
+                                    { newEndDate: newEndDate.toISOString() }
+                                );
+                            } catch (histErr) {
+                                console.log('  ⚠️ Could not add service history:', histErr.message);
+                            }
+
+                            renewed++;
+                            console.log(`  ✅ Auto-renewed: ${sub.user?.firstName} ${sub.user?.lastName} → ${newEndDate.toDateString()}`);
+                        }
                     } else {
                         // Move to grace period
                         const gracePeriodEnd = new Date(sub.endDate);

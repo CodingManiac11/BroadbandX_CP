@@ -153,16 +153,6 @@ const SubscriptionsPage: React.FC = () => {
     return `₹${price.toFixed(2)}`;
   };
 
-  const calculateEndDate = (startDate: string, billingCycle: string) => {
-    const start = new Date(startDate);
-    const end = new Date(start);
-    if (billingCycle === 'yearly') {
-      end.setFullYear(end.getFullYear() + 1);
-    } else {
-      end.setDate(end.getDate() + 30); // 30-day billing period
-    }
-    return end;
-  };
 
   if (loading && subscriptions.length === 0) {
     return (
@@ -317,7 +307,7 @@ const SubscriptionsPage: React.FC = () => {
                 </TableCell>
                 <TableCell>{formatDate(subscription.startDate)}</TableCell>
                 <TableCell>
-                  {formatDate(calculateEndDate(subscription.startDate, subscription.billingCycle || 'monthly').toISOString())}
+                  {subscription.endDate ? formatDate(subscription.endDate) : 'N/A'}
                 </TableCell>
                 <TableCell>{formatDate(subscription.createdAt)}</TableCell>
                 {user?.role === 'admin' && (

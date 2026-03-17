@@ -17,7 +17,8 @@ const {
   getAllSubscriptions,
   activateSubscription,
   cancelSubscription,
-  resetUserPassword
+  resetUserPassword,
+  getAnalyticsOverview
 } = require('../controllers/adminController');
 const { adminOnly, authenticateToken } = require('../middleware/auth');
 const router = express.Router();
@@ -38,6 +39,7 @@ router.get('/analytics/revenue', getRevenueAnalytics);
 router.get('/analytics/top-plans', getTopPlans);
 router.get('/analytics/usage', getUsageAnalytics);
 router.get('/analytics/customers', getCustomerInsights);
+router.get('/analytics/overview', getAnalyticsOverview);
 
 // User management
 router.get('/users', getUserManagement);

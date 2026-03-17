@@ -167,7 +167,7 @@ const subscriptionSchema = new mongoose.Schema({
     metadata: mongoose.Schema.Types.Mixed // For storing additional data like old plan details
   }],
   autoRenewal: {
-    enabled: { type: Boolean, default: true },
+    enabled: { type: Boolean, default: false },
     nextRenewalDate: Date,
     paymentMethodId: String
   },
@@ -254,15 +254,10 @@ subscriptionSchema.pre('save', function (next) {
     this.pricing.totalAmount = this.pricing.finalPrice + this.pricing.taxAmount;
   }
 
-  // Set next renewal date for auto-renewal
-  if (this.autoRenewal.enabled && this.billingCycle && this.startDate) {
-    const nextRenewal = new Date(this.startDate);
-    if (this.billingCycle === 'monthly') {
-      nextRenewal.setDate(nextRenewal.getDate() + 30);
-    } else if (this.billingCycle === 'yearly') {
-      nextRenewal.setFullYear(nextRenewal.getFullYear() + 1);
-    }
-    this.autoRenewal.nextRenewalDate = nextRenewal;
+  // Auto-renewal is disabled by default — users renew manually
+  // nextRenewalDate is kept as endDate for display purposes only
+  if (this.endDate) {
+    this.autoRenewal.nextRenewalDate = this.endDate;
   }
 
   next();
@@ -305,15 +300,8 @@ subscriptionSchema.statics.getSubscriptionStats = function () {
 // Method to calculate next bill date
 subscriptionSchema.methods.getNextBillDate = function () {
   if (!this.autoRenewal.enabled) return null;
-
-  const nextBill = new Date(this.startDate);
-  if (this.billingCycle === 'monthly') {
-    nextBill.setDate(nextBill.getDate() + 30);
-  } else {
-    nextBill.setFullYear(nextBill.getFullYear() + 1);
-  }
-
-  return nextBill;
+  // endDate is always the correct next billing date
+  return this.endDate || null;
 };
 
 // Method to add service history entry

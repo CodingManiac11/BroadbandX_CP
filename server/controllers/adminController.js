@@ -165,8 +165,8 @@ const getDashboardStats = asyncHandler(async (req, res) => {
       expiringSoon,
       subscriptionsByStatus,
       popularPlansThisMonth,
-      recentUsers: [], // TODO: Add recent users query
-      recentSubscriptions: [], // TODO: Add recent subscriptions query
+      recentUsers: await User.find().sort({ createdAt: -1 }).limit(5).select('firstName lastName email createdAt status role'),
+      recentSubscriptions: await Subscription.find().sort({ createdAt: -1 }).limit(5).populate('user', 'firstName lastName email').populate('plan', 'name category'),
       // Real-time usage statistics
       totalUsageGB: parseFloat(totalUsageGB),
       activeUsersCount,
@@ -1481,6 +1481,139 @@ const resetUserPassword = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Get analytics overview (real DB data for charts)
+// @route   GET /api/admin/analytics/overview
+// @access  Private/Admin
+const getAnalyticsOverview = asyncHandler(async (req, res) => {
+  const { months = 6 } = req.query;
+  const monthsAgo = new Date();
+  monthsAgo.setMonth(monthsAgo.getMonth() - parseInt(months));
+
+  // 1. Subscription trend by month
+  const subscriptionTrend = await Subscription.aggregate([
+    { $match: { createdAt: { $gte: monthsAgo } } },
+    {
+      $group: {
+        _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
+        active: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
+        new: { $sum: 1 },
+        churned: { $sum: { $cond: [{ $in: ['$status', ['cancelled', 'expired', 'suspended']] }, 1, 0] } }
+      }
+    },
+    { $sort: { '_id.year': 1, '_id.month': 1 } }
+  ]);
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const formattedSubTrend = subscriptionTrend.map(item => ({
+    month: monthNames[item._id.month - 1],
+    active: item.active,
+    new: item.new,
+    churned: item.churned
+  }));
+
+  // 2. Revenue trend by month
+  const revenueTrend = await Subscription.aggregate([
+    { $match: { createdAt: { $gte: monthsAgo } } },
+    {
+      $group: {
+        _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
+        revenue: { $sum: '$pricing.totalAmount' }
+      }
+    },
+    { $sort: { '_id.year': 1, '_id.month': 1 } }
+  ]);
+
+  const formattedRevTrend = revenueTrend.map(item => ({
+    month: monthNames[item._id.month - 1],
+    revenue: item.revenue
+  }));
+
+  // 3. Plan distribution (active subscriptions only)
+  const planDistribution = await Subscription.aggregate([
+    { $match: { status: 'active' } },
+    {
+      $lookup: {
+        from: 'plans',
+        localField: 'plan',
+        foreignField: '_id',
+        as: 'planDetails'
+      }
+    },
+    { $unwind: '$planDetails' },
+    {
+      $group: {
+        _id: '$planDetails.name',
+        value: { $sum: 1 }
+      }
+    },
+    { $sort: { value: -1 } }
+  ]);
+
+  const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7c7c', '#a4de6c', '#d0ed57'];
+  const formattedPlanDist = planDistribution.map((item, i) => ({
+    name: item._id,
+    value: item.value,
+    color: colors[i % colors.length]
+  }));
+
+  // 4. Summary stats
+  const totalSubs = await Subscription.countDocuments();
+  const activeSubs = await Subscription.countDocuments({ status: 'active' });
+  const cancelledSubs = await Subscription.countDocuments({ status: { $in: ['cancelled', 'expired'] } });
+  const totalRevResult = await Subscription.aggregate([
+    { $group: { _id: null, total: { $sum: '$pricing.totalAmount' } } }
+  ]);
+  const monthlyRevResult = await Subscription.aggregate([
+    { $match: { createdAt: { $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } },
+    { $group: { _id: null, total: { $sum: '$pricing.totalAmount' } } }
+  ]);
+
+  // 5. Recent activities (last 10 events from users + subscriptions)
+  const recentUsers = await User.find().sort({ createdAt: -1 }).limit(5).select('firstName lastName createdAt');
+  const recentSubs = await Subscription.find().sort({ createdAt: -1 }).limit(5)
+    .populate('user', 'firstName lastName').populate('plan', 'name');
+
+  const recentActivities = [
+    ...recentUsers.map(u => ({
+      id: u._id.toString(),
+      type: 'user_joined',
+      description: `${u.firstName} ${u.lastName} joined`,
+      timestamp: u.createdAt
+    })),
+    ...recentSubs.map(s => ({
+      id: s._id.toString(),
+      type: s.status === 'active' ? 'subscription' : s.status === 'cancelled' ? 'cancellation' : 'payment',
+      description: `${s.user?.firstName || 'User'} ${s.user?.lastName || ''} ${s.status === 'active' ? 'subscribed to' : 'cancelled'} ${s.plan?.name || 'a plan'}`,
+      timestamp: s.createdAt
+    }))
+  ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 10);
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      subscriptions: {
+        total: totalSubs,
+        active: activeSubs,
+        churned: cancelledSubs,
+        new: formattedSubTrend.reduce((sum, m) => sum + m.new, 0),
+        growth: totalSubs > 0 ? Math.round(((activeSubs / totalSubs) * 100 - 50) * 100) / 100 : 0
+      },
+      revenue: {
+        total: totalRevResult[0]?.total || 0,
+        monthly: monthlyRevResult[0]?.total || 0,
+        growth: 0,
+        arpu: activeSubs > 0 ? Math.round((totalRevResult[0]?.total || 0) / activeSubs) : 0
+      },
+      trends: {
+        subscriptionTrend: formattedSubTrend,
+        revenueTrend: formattedRevTrend,
+        planDistribution: formattedPlanDist
+      },
+      recentActivities
+    }
+  });
+});
+
 module.exports = {
   getDashboardStats,
   getUserManagement,
@@ -1504,5 +1637,6 @@ module.exports = {
   getPlanRequestById,
   approvePlanRequest,
   rejectPlanRequest,
-  getPlanRequestAnalytics
+  getPlanRequestAnalytics,
+  getAnalyticsOverview
 };

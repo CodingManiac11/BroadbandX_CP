@@ -37,72 +37,35 @@ export const AdvancedAnalyticsDashboard: React.FC = () => {
   const [timeRange, setTimeRange] = useState('6months');
   const [selectedMetric, setSelectedMetric] = useState('subscriptions');
 
-  // Mock data generation
+  // Fetch real data from backend
   useEffect(() => {
-    const generateMockData = (): AnalyticsData => {
-      const subscriptionTrend = [
-        { month: 'Jan', active: 1200, new: 150, churned: 25 },
-        { month: 'Feb', active: 1325, new: 180, churned: 35 },
-        { month: 'Mar', active: 1470, new: 200, churned: 45 },
-        { month: 'Apr', active: 1625, new: 220, churned: 55 },
-        { month: 'May', active: 1790, new: 250, churned: 65 },
-        { month: 'Jun', active: 1975, new: 275, churned: 80 }
-      ];
-
-      const revenueTrend = [
-        { month: 'Jan', revenue: 48000, target: 45000 },
-        { month: 'Feb', revenue: 53000, target: 50000 },
-        { month: 'Mar', revenue: 58800, target: 55000 },
-        { month: 'Apr', revenue: 65000, target: 60000 },
-        { month: 'May', revenue: 71600, target: 65000 },
-        { month: 'Jun', revenue: 79000, target: 70000 }
-      ];
-
-      const usageTrend = [
-        { month: 'Jan', usage: 85, bandwidth: 100 },
-        { month: 'Feb', usage: 92, bandwidth: 100 },
-        { month: 'Mar', usage: 88, bandwidth: 100 },
-        { month: 'Apr', usage: 95, bandwidth: 100 },
-        { month: 'May', usage: 90, bandwidth: 100 },
-        { month: 'Jun', usage: 97, bandwidth: 100 }
-      ];
-
-      const planDistribution = [
-        { name: 'Basic', value: 35, color: '#8884d8' },
-        { name: 'Standard', value: 45, color: '#82ca9d' },
-        { name: 'Premium', value: 15, color: '#ffc658' },
-        { name: 'Enterprise', value: 5, color: '#ff7c7c' }
-      ];
-
-      return {
-        subscriptions: {
-          total: 1975,
-          active: 1895,
-          churned: 80,
-          new: 275,
-          growth: 12.5
-        },
-        revenue: {
-          total: 79000,
-          monthly: 79000,
-          growth: 18.2,
-          arpu: 40
-        },
-        usage: {
-          totalBandwidth: 19750,
-          averageUsage: 97,
-          peakUsage: 134
-        },
-        trends: {
-          subscriptionTrend,
-          revenueTrend,
-          usageTrend,
-          planDistribution
+    const fetchAnalytics = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+        const monthsMap: Record<string, number> = { '1month': 1, '3months': 3, '6months': 6, '1year': 12 };
+        const response = await fetch(`${API_URL}/admin/analytics/overview?months=${monthsMap[timeRange] || 6}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const result = await response.json();
+        if (result.status === 'success') {
+          setAnalyticsData({
+            subscriptions: result.data.subscriptions,
+            revenue: result.data.revenue,
+            usage: { totalBandwidth: 0, averageUsage: 0, peakUsage: 0 },
+            trends: {
+              subscriptionTrend: result.data.trends.subscriptionTrend,
+              revenueTrend: result.data.trends.revenueTrend,
+              usageTrend: [],
+              planDistribution: result.data.trends.planDistribution
+            }
+          });
         }
-      };
+      } catch (error) {
+        console.error('Failed to fetch analytics:', error);
+      }
     };
-
-    setAnalyticsData(generateMockData());
+    fetchAnalytics();
   }, [timeRange]);
 
   if (!analyticsData) {
@@ -290,23 +253,27 @@ export const AdvancedAnalyticsDashboard: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               <tr>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Active Subscriptions</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{analyticsData.subscriptions.active}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">1,690</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">+12.1%</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{analyticsData.subscriptions.active.toLocaleString()}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{analyticsData.subscriptions.total.toLocaleString()}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
+                  {analyticsData.subscriptions.total > 0 ? `${((analyticsData.subscriptions.active / analyticsData.subscriptions.total) * 100).toFixed(1)}%` : 'N/A'}
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap"><TrendingUp className="w-4 h-4 text-green-600" /></td>
               </tr>
               <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Monthly Revenue</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${analyticsData.revenue.monthly.toLocaleString()}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">$67,600</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">+16.9%</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Total Revenue</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{analyticsData.revenue.total.toLocaleString()}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{analyticsData.revenue.monthly.toLocaleString()} (this month)</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">ARPU: ₹{analyticsData.revenue.arpu.toLocaleString()}</td>
                 <td className="px-6 py-4 whitespace-nowrap"><TrendingUp className="w-4 h-4 text-green-600" /></td>
               </tr>
               <tr>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Churn Rate</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">4.2%</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">5.1%</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">-0.9%</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {analyticsData.subscriptions.total > 0 ? `${((analyticsData.subscriptions.churned / analyticsData.subscriptions.total) * 100).toFixed(1)}%` : '0%'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{analyticsData.subscriptions.churned} churned</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">{analyticsData.subscriptions.new} new</td>
                 <td className="px-6 py-4 whitespace-nowrap"><TrendingDown className="w-4 h-4 text-green-600" /></td>
               </tr>
             </tbody>

@@ -73,9 +73,56 @@ const ExpiryBanner: React.FC<ExpiryBannerProps> = ({
         }
     }, [subscriptionStatus, gracePeriodEnd]);
 
-    // Don't show anything for active or cancelled subscriptions
-    if (subscriptionStatus === 'active' || subscriptionStatus === 'cancelled') {
+    // Don't show anything for cancelled subscriptions
+    if (subscriptionStatus === 'cancelled') {
         return null;
+    }
+
+    // Show renewal reminder for active subscriptions nearing expiry (≤7 days)
+    if (subscriptionStatus === 'active' && endDate) {
+        const daysUntilExpiry = Math.ceil(
+            (new Date(endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+        );
+
+        if (daysUntilExpiry > 7 || daysUntilExpiry <= 0) {
+            return null; // Don't show if > 7 days left or already expired
+        }
+
+        const isUrgent = daysUntilExpiry <= 3;
+
+        return (
+            <Alert
+                severity={isUrgent ? 'error' : 'warning'}
+                variant="filled"
+                sx={{
+                    mb: 3,
+                    borderRadius: 2,
+                    animation: isUrgent ? 'pulse-alert 2s ease-in-out infinite' : 'none',
+                    '@keyframes pulse-alert': {
+                        '0%, 100%': { opacity: 1 },
+                        '50%': { opacity: 0.85 },
+                    },
+                }}
+                icon={isUrgent ? <ErrorIcon /> : <WarningIcon />}
+                action={
+                    <Button
+                        color="inherit"
+                        size="small"
+                        startIcon={<RenewIcon />}
+                        onClick={onRenew}
+                        sx={{ fontWeight: 700, textTransform: 'none' }}
+                    >
+                        Renew Now
+                    </Button>
+                }
+            >
+                <AlertTitle sx={{ fontWeight: 700 }}>
+                    {isUrgent ? '⚠️ Plan Expiring Very Soon!' : '⏰ Plan Expiring Soon'}
+                </AlertTitle>
+                Your <strong>{planName || 'plan'}</strong> expires in <strong>{daysUntilExpiry} day{daysUntilExpiry !== 1 ? 's' : ''}</strong>.
+                Renew now to avoid service interruption.
+            </Alert>
+        );
     }
 
     // ========================

@@ -40,6 +40,7 @@ class ScheduledReportService {
             const weeklySchedule = `0 ${this.config.weeklyHour} * * ${this.config.weeklyDay}`;
             this.weeklyJob = cron.schedule(weeklySchedule, () => {
                 this.generateReport('Weekly');
+                this._saveLastRun('weekly');
             });
             console.log(`   📊 Weekly reports enabled (Every Monday at ${this.config.weeklyHour}:00)`);
         }
@@ -49,11 +50,77 @@ class ScheduledReportService {
             const monthlySchedule = `0 ${this.config.monthlyHour} ${this.config.monthlyDay} * *`;
             this.monthlyJob = cron.schedule(monthlySchedule, () => {
                 this.generateReport('Monthly');
+                this._saveLastRun('monthly');
             });
             console.log(`   📈 Monthly reports enabled (1st of month at ${this.config.monthlyHour}:00)`);
         }
 
         console.log('✅ Scheduled Report Service started');
+
+        // Check for missed reports on startup
+        this._checkMissedReports();
+    }
+
+    /**
+     * Check if any scheduled reports were missed (server wasn't running at cron time)
+     * and send them now as catch-up
+     */
+    async _checkMissedReports() {
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentDay = now.getDay();   // 0=Sun, 1=Mon, ...
+        const currentDate = now.getDate(); // 1-31
+
+        const lastRuns = this._getLastRuns();
+        const todayKey = now.toISOString().split('T')[0]; // e.g. "2026-03-16"
+
+        // Weekly catch-up: today is the right weekday AND the scheduled hour has passed
+        if (this.config.weeklyEnabled &&
+            currentDay === this.config.weeklyDay &&
+            currentHour >= this.config.weeklyHour &&
+            lastRuns.weekly !== todayKey) {
+            console.log('📬 Catch-up: Weekly report was missed earlier today, sending now...');
+            await this.generateReport('Weekly (Catch-up)');
+            this._saveLastRun('weekly');
+        }
+
+        // Monthly catch-up: today is the right date AND the scheduled hour has passed
+        if (this.config.monthlyEnabled &&
+            currentDate === this.config.monthlyDay &&
+            currentHour >= this.config.monthlyHour &&
+            lastRuns.monthly !== todayKey) {
+            console.log('📬 Catch-up: Monthly report was missed earlier today, sending now...');
+            await this.generateReport('Monthly (Catch-up)');
+            this._saveLastRun('monthly');
+        }
+    }
+
+    /**
+     * Track last run dates to prevent duplicate sends on rapid restarts
+     */
+    _getLastRuns() {
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const filePath = path.join(__dirname, '../.report_last_runs.json');
+            if (fs.existsSync(filePath)) {
+                return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            }
+        } catch (e) { /* ignore */ }
+        return {};
+    }
+
+    _saveLastRun(type) {
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const filePath = path.join(__dirname, '../.report_last_runs.json');
+            const runs = this._getLastRuns();
+            runs[type] = new Date().toISOString().split('T')[0];
+            fs.writeFileSync(filePath, JSON.stringify(runs, null, 2));
+        } catch (e) {
+            console.error('⚠️ Could not save report last run:', e.message);
+        }
     }
 
     /**

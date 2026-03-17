@@ -46,13 +46,13 @@ const createSubscription = asyncHandler(async (req, res) => {
     finalPrice = basePrice - discountApplied;
   }
 
-  // Calculate dates
+  // Calculate dates — monthly plans are always exactly 30 days
   const subscriptionStartDate = startDate ? new Date(startDate) : new Date();
   const endDate = new Date(subscriptionStartDate);
   if (billingCycle === 'yearly') {
     endDate.setFullYear(endDate.getFullYear() + 1);
   } else {
-    endDate.setMonth(endDate.getMonth() + 1);
+    endDate.setDate(endDate.getDate() + 30); // 30-day billing cycle
   }
 
   // Calculate tax (example: 8% tax)
@@ -464,12 +464,12 @@ const renewSubscription = asyncHandler(async (req, res) => {
     });
   }
 
-  // Extend subscription
+  // Extend subscription — monthly = 30 days
   const newEndDate = new Date(subscription.endDate);
   if (subscription.billingCycle === 'yearly') {
     newEndDate.setFullYear(newEndDate.getFullYear() + 1);
   } else {
-    newEndDate.setMonth(newEndDate.getMonth() + 1);
+    newEndDate.setDate(newEndDate.getDate() + 30); // 30-day billing cycle
   }
 
   subscription.endDate = newEndDate;

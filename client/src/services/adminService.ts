@@ -60,8 +60,10 @@ export const adminService = {
 
   updateUserStatus: async (userId: string, status: 'active' | 'inactive' | 'suspended'): Promise<User> => {
     try {
-      const response = await apiClient.put<ApiResponse<User>>(`/admin/users/${userId}/status`, { status });
-      return handleApiResponse<User>(response);
+      const response = await apiClient.put<ApiResponse<{ user: User }>>(`/admin/users/${userId}/status`, { status });
+      const data = handleApiResponse<{ user: User }>(response);
+      // Backend wraps result as { user: {...} } — extract the actual User object
+      return data.user ?? (data as unknown as User);
     } catch (error) {
       throw new Error(handleApiError(error));
     }
